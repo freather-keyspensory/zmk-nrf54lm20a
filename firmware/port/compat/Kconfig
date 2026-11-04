@@ -14,3 +14,7 @@ config MINEW_UF2_BOOTLOADER
  bool "Minew MCUboot UF2 recovery entry"
  depends on BOOTLOADER_MCUBOOT && SOC_NRF54LM20A
  default n
+
+if ZMK_USB_NEXT
+rsource "../../upstream-zephyr/samples/subsys/usb/common/Kconfig.sample_usbd"
+endif

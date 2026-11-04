@@ -4,6 +4,11 @@
 #include <zephyr/drivers/kscan.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
+#if IS_ENABLED(CONFIG_ZMK_USB_NEXT)
+#include <zmk/endpoints.h>
+extern int minew_usb_reconnect(void);
+extern void minew_usb_benchmark_start(void);
+#endif
 #if IS_ENABLED(CONFIG_ZMK_STUDIO)
 #include <zmk/studio/core.h>
 #endif
@@ -21,6 +26,16 @@ static struct k_work_delayable poll_work;
 static bool enabled, pressed;
 static void poll(struct k_work *work) {
  if (!enabled) { return; }
+#if IS_ENABLED(CONFIG_ZMK_USB_NEXT)
+ if (minew_test_key_request >= 4 && minew_test_key_request <= 7) {
+  uint32_t request = minew_test_key_request;
+  minew_test_key_request = 0;
+  if (request == 4) zmk_endpoints_select_transport(ZMK_TRANSPORT_USB);
+  if (request == 5) zmk_endpoints_select_transport(ZMK_TRANSPORT_BLE);
+  if (request == 6) minew_usb_reconnect();
+  if (request == 7) minew_usb_benchmark_start();
+ }
+#endif
 #if IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT)
  if (minew_test_key_request == 3) {
   const struct device *retained = DEVICE_DT_GET(DT_NODELABEL(gpregret1));

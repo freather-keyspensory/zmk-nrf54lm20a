@@ -58,6 +58,7 @@ Resolve `minew_test_key_request` from the exact application ELF before writing R
 - 1: one mapped key press/release.
 - 2: explicitly unlock Studio.
 - 3: request this bootloader's recovery mode and reset (MCUboot build only).
+- With USB next enabled, commands 4–7 select USB/BLE, test software reconnect, and run a development-only neutral-report benchmark. See root `docs/usb-hid.md`.
 
 Configure the probe explicitly with `MINEW_JLINK_SERIAL` or a local ignored `firmware/port/.probe.json`. Never select an arbitrary attached probe. Keep a full backup and working SWD path before changing boot layout. Historical Commander/recovery scripts are experimental diagnostics; do not invoke destructive recovery automatically.
 

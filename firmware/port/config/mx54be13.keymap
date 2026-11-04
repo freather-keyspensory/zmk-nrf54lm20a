@@ -22,3 +22,17 @@
   default_layer { bindings = <&kp A>; };
  };
 };
+
+&usbhs_wrapper { status = "okay"; };
+zephyr_udc0: &usbhs { status = "okay"; };
+&xo24m { status = "okay"; };
+&vregusb { status = "okay"; };
+/ {
+ minew_usb_hid: minew-usb-hid {
+  compatible = "zephyr,hid-device";
+  label = "Minew ZMK keyboard";
+  protocol-code = "none";
+  in-report-size = <64>;
+  in-polling-period-us = <125>;
+ };
+};

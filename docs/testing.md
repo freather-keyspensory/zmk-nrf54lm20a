@@ -27,7 +27,11 @@ Actual hardware: Minew MX54BE13/ME54BS13 nRF54LM20A. Host: Apple Silicon macOS. 
 | Double-reset detection using software resets | Passed; physical button not yet tested |
 | Incomplete UF2 transfer followed by reset | Passed; 100/900 blocks received, reset booted existing firmware |
 | Physical power loss during swap / prolonged update stress | Not yet tested |
-| USB HID keyboard and USB/BLE switching | Not yet implemented/tested |
+| USB HID keyboard and USB/BLE switching | Passed on macOS; actual A input verified on each transport |
+| USB 125 us / 8 kHz HID endpoint | Host descriptor verified |
+| Neutral-report throughput, 16,000 reports/run | 7,985.3–7,999.8 completions/s; zero reported submission errors |
+| Software USB detach/reconnect and MCU reboot | Passed, including USB typing afterward |
+| Physical cable replug / host reboot | Deferred / untested |
 | Physical keyboard matrix, EC/HE scanning | Not tested by this firmware baseline |
 
 Host checks include full UF2 reconstruction of the signed image, bounds/alignment checks, and imgtool rejection of a tampered payload. Hardware rejection of the tampered signed file was also observed; the previously confirmed application remained bootable.
@@ -49,7 +53,7 @@ Raw device backups and desktop captures are deliberately not published because t
 
 These are controlled development tests, not a production certification. Anti-rollback provisioning is not enabled; signed older versions can be installed, which was useful for the rollback test. User-visible transfer/error status and broader power-loss/stress coverage remain future work.
 
-## Final audited state
+## Pre-USB-HID audited state (historical)
 
 The board is left running signed ZMK **0.1.1+1** through MCUboot. The entire installed signed image matched its package on SWD readback. The bootloader region also matched the originally installed bootloader after positive, tampered, rollback, and partial-copy tests. The CPU was running, the test-key request was idle, BLE reconnected, and the final application typed A in an empty TextEdit document. The standalone, non-MCUboot BLE/Studio target was rebuilt successfully as a regression check.
 
@@ -57,3 +61,7 @@ The board is left running signed ZMK **0.1.1+1** through MCUboot. The entire ins
 - Bootloader SHA-256: `1c488f756478e6e5b6581db49a25607f2dc7a4561edae3ef0e47c63adc10a960`
 
 These hashes identify local development builds; new signing keys or rebuilt dependencies will produce different artifacts. Private keys and full memory images are not published.
+
+## Current USB HID state
+
+The board is running signed **0.2.0+1**, with USB preferred and the High Speed HID endpoint configured for 125 us polling. See [USB HID report](usb-hid.md) for descriptor, throughput, switching and reboot evidence. Physical replug was deferred by the owner. No Windows or host-reboot result is claimed.

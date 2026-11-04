@@ -2,9 +2,9 @@
 
 Experimental ZMK firmware and a signed MCUboot/UF2 update path for the **Minew MX54BE13 development board with ME54BS13 nRF54LM20A module**.
 
-The working baseline supports BLE HID and native macOS ZMK Studio. Native USB High Speed MSC transport is verified. MCUboot signed boot, complete UF2 upgrades, tampered-image rejection, unconfirmed-trial rollback, and incomplete-copy recovery have passed controlled hardware tests. Physical power-loss and broader stress coverage remain outstanding. See the [test report](docs/testing.md) for exact evidence and limitations.
+The working baseline supports USB HID, BLE HID, and native macOS ZMK Studio. The wired HID endpoint is configured for 8 kHz; measured completion rates were approximately 7.985–8.000 kHz. See [USB test details](docs/usb-hid.md). Native USB High Speed MSC transport is also verified. MCUboot signed boot, complete UF2 upgrades, tampered-image rejection, unconfirmed-trial rollback, and incomplete-copy recovery have passed controlled hardware tests. Physical power-loss and broader stress coverage remain outstanding. See the [test report](docs/testing.md) for exact evidence and limitations.
 
-This is a pinned compatibility port of **ZMK v0.3.0 to a newer Zephyr**, not a claim of upstream nRF54LM20A support or a production bootloader. Native USB keyboard HID is a separate unfinished milestone. The original XIAO target remains unverified on XIAO hardware.
+This is a pinned compatibility port of **ZMK v0.3.0 to a newer Zephyr**, not a claim of upstream nRF54LM20A support or a production bootloader. USB HID is verified on macOS; physical cable replug, host reboot, and Windows remain unverified. The original XIAO target remains unverified on XIAO hardware.
 
 ## Repository layout
 

@@ -5,7 +5,7 @@ The tested host is Apple Silicon macOS with Python 3.13, CMake, Ninja, dtc, and 
 1. Install Python 3.13, CMake, Ninja and dtc.
 2. Run `bash firmware/scripts/setup-port.sh` from a fresh source checkout. It fetches pinned upstream repositories and applies the patches. It refuses to overwrite dirty upstream checkouts. It performs no flashing. Dependency downloads may be substantial.
 3. Install the official SDK 0.16.8 minimal macOS ARM64 package and ARM toolchain under `firmware/toolchains/zephyr-sdk-0.16.8/`. Verify upstream release checksums: https://github.com/zephyrproject-rtos/sdk-ng/releases/tag/v0.16.8. Linux/other toolchains require adapting the paths and remain unverified here.
-4. Build BLE/Studio without a bootloader: `bash firmware/port/scripts/build.sh zmk`.
+4. Build USB/BLE/Studio without a bootloader: `bash firmware/port/scripts/build.sh zmk`.
 5. Build the USB validation-only application: `bash firmware/bootloader/build.sh`.
 6. For MCUboot, generate your own local development key (never reuse someone else's private key):
 
