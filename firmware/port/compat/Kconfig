@@ -1,0 +1,16 @@
+config KSCAN
+ bool "Legacy keyboard-scan API compatibility"
+config KSCAN_INIT_PRIORITY
+ int "Legacy keyboard-scan initialization priority"
+ default 90
+config KSCAN_LOG_LEVEL
+ int
+ default 3
+config MINEW_MANUAL_KEY
+ bool
+ default y if DT_HAS_MINEW_KSCAN_MANUAL_ENABLED
+ depends on KSCAN
+config MINEW_UF2_BOOTLOADER
+ bool "Minew MCUboot UF2 recovery entry"
+ depends on BOOTLOADER_MCUBOOT && SOC_NRF54LM20A
+ default n

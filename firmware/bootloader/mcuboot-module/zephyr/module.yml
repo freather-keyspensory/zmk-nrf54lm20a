@@ -1,0 +1,4 @@
+name: minew_uf2_recovery
+build:
+  cmake: .
+  kconfig: Kconfig

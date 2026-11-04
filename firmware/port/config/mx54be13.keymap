@@ -1,0 +1,24 @@
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+#include <dt-bindings/zmk/matrix_transform.h>
+#include <physical_layouts.dtsi>
+/ {
+ chosen { zmk,kscan = &manual_scan; zmk,physical-layout = &test_layout; };
+ test_layout: test-layout {
+  compatible = "zmk,physical-layout";
+  display-name = "Minew one-key SWD test";
+  transform = <&default_transform>;
+  kscan = <&manual_scan>;
+  keys = <&key_physical_attrs 100 100 0 0 0 0 0>;
+ };
+ manual_scan: manual-scan { compatible = "minew,kscan-manual"; };
+ default_transform: keymap-transform {
+  compatible = "zmk,matrix-transform";
+  rows = <1>; columns = <1>;
+  map = <RC(0,0)>;
+ };
+ keymap {
+  compatible = "zmk,keymap";
+  default_layer { bindings = <&kp A>; };
+ };
+};

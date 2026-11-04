@@ -1,0 +1,37 @@
+/dts-v1/;
+#include <nordic/nrf54lm20a_cpuapp.dtsi>
+
+/ {
+ model = "Minew MX54BE13 ME54BS13";
+ compatible = "minew,mx54be13";
+ chosen {
+  zephyr,code-partition = &slot0_partition;
+  zephyr,sram = &cpuapp_sram_app;
+  zephyr,flash-controller = &rram_controller;
+  zephyr,flash = &cpuapp_rram;
+ };
+};
+&cpuapp_sram { status = "okay"; };
+&hfpll { clock-frequency = <DT_FREQ_M(128)>; };
+&hfxo { load-capacitors = "internal"; load-capacitance-femtofarad = <15000>; };
+&grtc { owned-channels = <0 1 2 3 4 5 6 7 8 9 10 11>; child-owned-channels = <3 4 7 8 9 10 11>; status = "okay"; };
+&gpio0 { status = "okay"; };
+&gpio1 { status = "okay"; };
+&gpio2 { status = "okay"; };
+&gpio3 { status = "okay"; };
+&gpiote20 { status = "okay"; };
+&gpiote30 { status = "okay"; };
+&radio { status = "okay"; };
+&clock { status = "okay"; };
+&xo { status = "okay"; };
+&lfclk { status = "okay"; k32src = "rc"; k32src-accuracy-ppm = <250>; };
+
+&cpuapp_rram {
+ partitions {
+  compatible = "fixed-partitions";
+  #address-cells = <1>;
+  #size-cells = <1>;
+  slot0_partition: partition@0 { reg = <0x0 0x1f4000>; label = "image-0"; };
+  storage_partition: partition@1f4000 { reg = <0x1f4000 0x9000>; label = "storage"; };
+ };
+};

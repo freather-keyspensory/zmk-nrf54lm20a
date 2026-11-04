@@ -1,0 +1,1 @@
+rsource "../../upstream-zephyr/samples/subsys/usb/common/Kconfig.sample_usbd"

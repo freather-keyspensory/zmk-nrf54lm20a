@@ -1,0 +1,7 @@
+build/
+build-host/
+__pycache__/
+
+build-mcuboot/
+build-zmk/
+keys/

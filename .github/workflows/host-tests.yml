@@ -1,0 +1,15 @@
+name: Host protocol tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  uf2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test UF2 parser and converter with sanitizers
+        run: bash firmware/bootloader/tests/run.sh
+      - name: Compile Python tools
+        run: python3 -m compileall -q firmware/bootloader/tools firmware/bootloader/tests firmware/port/scripts

@@ -1,0 +1,7 @@
+#include "layout.dtsi"
+/ { chosen { zephyr,code-partition = &boot_partition; }; };
+&usbhs_wrapper { status = "okay"; };
+zephyr_udc0: &usbhs { status = "okay"; };
+&xo24m { status = "okay"; };
+&vregusb { status = "okay"; };
+&gpregret1 { status = "okay"; };

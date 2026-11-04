@@ -1,0 +1,3 @@
+mainmenu "Minew UF2 recovery prototype"
+source "Kconfig.zephyr"
+rsource "../upstream-zephyr/samples/subsys/usb/common/Kconfig.sample_usbd"

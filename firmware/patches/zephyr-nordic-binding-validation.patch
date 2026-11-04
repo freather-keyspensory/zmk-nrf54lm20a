@@ -1,0 +1,13 @@
+diff --git a/soc/nordic/CMakeLists.txt b/soc/nordic/CMakeLists.txt
+index 77eaa3221..fcfc22a4d 100644
+--- a/soc/nordic/CMakeLists.txt
++++ b/soc/nordic/CMakeLists.txt
+@@ -16,7 +16,7 @@ zephyr_library_sources(
+ # DT values against the MDK, without having to conditionally include different
+ # headers for different SoCs.
+ set(dt_binding_includes ${DTS_INCLUDE_FILES})
+-list(FILTER dt_binding_includes INCLUDE REGEX "/dt-bindings/.*\.h$")
++list(FILTER dt_binding_includes INCLUDE REGEX "/include/zephyr/dt-bindings/.*\.h$")
+ 
+ set(include_flag $<TARGET_PROPERTY:compiler,include_file>$<SEMICOLON>)
+ 

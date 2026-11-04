@@ -1,0 +1,3 @@
+#include "layout.dtsi"
+/ { chosen { zephyr,code-partition = &slot0_partition; }; };
+&gpregret1 { status = "okay"; };

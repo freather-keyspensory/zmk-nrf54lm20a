@@ -1,0 +1,13 @@
+/* Experimental MCUboot scratch-swap layout; installed only by explicit installer. */
+&cpuapp_rram {
+ /delete-node/ partitions;
+ partitions {
+  compatible = "fixed-partitions";
+  #address-cells = <1>; #size-cells = <1>;
+  boot_partition: partition@0 { label = "mcuboot"; reg = <0 0x20000>; };
+  slot0_partition: partition@20000 { label = "image-0"; reg = <0x20000 0xd0000>; };
+  slot1_partition: partition@f0000 { label = "image-1"; reg = <0xf0000 0xd0000>; };
+  scratch_partition: partition@1c0000 { label = "image-scratch"; reg = <0x1c0000 0x34000>; };
+  storage_partition: partition@1f4000 { label = "storage"; reg = <0x1f4000 0x9000>; };
+ };
+};

@@ -1,0 +1,6 @@
+board:
+  name: mx54be13
+  full_name: Minew MX54BE13 nRF54LM20A
+  vendor: minew
+  socs:
+    - name: nrf54lm20a

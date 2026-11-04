@@ -1,0 +1,78 @@
+manifest:
+  group-filter:
+  - -babblesim
+  - -optional
+  - -testing
+  projects:
+  - name: zephyr
+    url: https://github.com/zephyrproject-rtos/zephyr
+    revision: 0534e997eacb94bae1df6c9a7dd4a9a6cbf1cecf
+    west-commands: scripts/west-commands.yml
+  - name: mcuboot
+    url: https://github.com/mcu-tools/mcuboot
+    revision: 725d63c9d5bc1bb572d802e7a768daf504186daf
+    path: bootloader/mcuboot
+  - name: nanopb
+    url: https://github.com/zmkfirmware/nanopb
+    revision: 8c60555d6277a0360c876bd85d491fc4fb0cd74a
+    path: modules/lib/nanopb
+  - name: zmk-studio-messages
+    url: https://github.com/zmkfirmware/zmk-studio-messages
+    revision: 6cb4c283e76209d59c45fbcb218800cd19e9339d
+    path: modules/msgs/zmk-studio-messages
+  - name: lvgl
+    url: https://github.com/zephyrproject-rtos/lvgl
+    revision: 8a6a2d1d29d17d1e4bdc94c243c146a39d635fdd
+    path: modules/lib/gui/lvgl
+  - name: cmsis
+    url: https://github.com/zephyrproject-rtos/cmsis
+    revision: 512cc7e895e8491696b61f7ba8066b4a182569b8
+    path: modules/hal/cmsis
+    groups:
+    - hal
+  - name: cmsis_6
+    url: https://github.com/zephyrproject-rtos/CMSIS_6
+    revision: 1c1840af7a7e757d6e2fec3ddb0e5ce0dfcc93c8
+    path: modules/hal/cmsis_6
+    groups:
+    - hal
+  - name: hal_nordic
+    url: https://github.com/zephyrproject-rtos/hal_nordic
+    revision: d4462033b4f3b10ca9b7037b5c597d0f0f8c3b38
+    path: modules/hal/nordic
+    groups:
+    - hal
+  - name: mbedtls
+    url: https://github.com/zephyrproject-rtos/mbedtls
+    revision: c43f34b93797e81fd0257c30004dcd0ae332ae51
+    path: modules/crypto/mbedtls
+    groups:
+    - crypto
+  - name: picolibc
+    url: https://github.com/zephyrproject-rtos/picolibc
+    revision: 01254932e8e81085817ed61fd858648584ffe37c
+    path: modules/lib/picolibc
+  - name: segger
+    url: https://github.com/zephyrproject-rtos/segger
+    revision: 50892fdbcf2f570e67baa72b8894a66b16946f72
+    path: modules/debug/segger
+    groups:
+    - debug
+  - name: tf-psa-crypto
+    url: https://github.com/zephyrproject-rtos/tf-psa-crypto
+    revision: 765af96a20a2b408474dcd950372ba9af4d26b62
+    path: modules/crypto/tf-psa-crypto
+    groups:
+    - crypto
+  - name: tf-psa-crypto-drivers
+    url: https://github.com/zephyrproject-rtos/tf-psa-crypto-drivers
+    revision: edb74a92e602cd21a218836aff41a0600229978c
+    path: modules/crypto/tf-psa-crypto-drivers
+    groups:
+    - crypto
+  - name: zcbor
+    url: https://github.com/zephyrproject-rtos/zcbor
+    revision: 9164bd18dcd88ff9d9ef98279501fc1093571017
+    path: modules/lib/zcbor
+  self:
+    path: manifest

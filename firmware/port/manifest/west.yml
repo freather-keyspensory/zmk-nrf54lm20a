@@ -1,0 +1,25 @@
+manifest:
+  projects:
+    - name: zephyr
+      url: https://github.com/zephyrproject-rtos/zephyr
+      revision: 0534e997eacb94bae1df6c9a7dd4a9a6cbf1cecf
+      import:
+        name-allowlist: [cmsis, cmsis_6, hal_nordic, picolibc, segger, tinycrypt, mbedtls, tf-psa-crypto, tf-psa-crypto-drivers, zcbor]
+    - name: mcuboot
+      url: https://github.com/mcu-tools/mcuboot
+      revision: 725d63c9d5bc1bb572d802e7a768daf504186daf
+      path: bootloader/mcuboot
+    - name: nanopb
+      url: https://github.com/zmkfirmware/nanopb
+      revision: 8c60555d6277a0360c876bd85d491fc4fb0cd74a
+      path: modules/lib/nanopb
+    - name: zmk-studio-messages
+      url: https://github.com/zmkfirmware/zmk-studio-messages
+      revision: 6cb4c283e76209d59c45fbcb218800cd19e9339d
+      path: modules/msgs/zmk-studio-messages
+    - name: lvgl
+      url: https://github.com/zephyrproject-rtos/lvgl
+      revision: 8a6a2d1d29d17d1e4bdc94c243c146a39d635fdd
+      path: modules/lib/gui/lvgl
+  self:
+    path: manifest

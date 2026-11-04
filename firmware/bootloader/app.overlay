@@ -1,0 +1,6 @@
+/* USB wiring and electrical prerequisites must be verified before runtime use. */
+&usbhs_wrapper { status = "okay"; };
+zephyr_udc0: &usbhs { status = "okay"; };
+
+&xo24m { status = "okay"; };
+&vregusb { status = "okay"; };

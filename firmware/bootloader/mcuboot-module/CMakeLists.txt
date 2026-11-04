@@ -1,0 +1,5 @@
+zephyr_library()
+zephyr_library_compile_definitions(MINEW_MCUBOOT=1)
+zephyr_library_include_directories(../include ${ZEPHYR_BASE}/samples/subsys/usb/common ../../port/bootloader/mcuboot/boot/bootutil/include ../../port/bootloader/mcuboot/boot/zephyr/include)
+zephyr_library_sources(../src/main.c ../src/virtual_disk.c ../src/uf2_draft.c recovery.c)
+zephyr_library_sources(${ZEPHYR_BASE}/samples/subsys/usb/common/sample_usbd_init.c)
