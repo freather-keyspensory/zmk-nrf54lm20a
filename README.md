@@ -19,7 +19,8 @@ This is a pinned compatibility port of **ZMK v0.3.0 to a newer Zephyr**, not a c
 1. Read the [build instructions](docs/build.md) and [test status](docs/testing.md).
 2. Run `bash firmware/bootloader/tests/run.sh` for host protocol checks.
 3. Follow the pinned-source setup and build instructions before considering any device writes.
-4. Read the [bootloader notes](firmware/bootloader/README.md) before signing, packaging, or installing firmware.
+4. Read the [first-install/update instructions](docs/flashing.md).
+5. Read the [bootloader notes](firmware/bootloader/README.md) before signing, packaging, or installing firmware.
 
 The first bootloader installation requires SWD and a full backup. Standalone address-zero images and MCUboot slot-linked images are different. Never use an nRF52840 UF2 image on this module.
 

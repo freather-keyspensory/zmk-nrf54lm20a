@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pack an image linked at the DRAFT primary-slot address. Not an installer."""
+"""Pack an image linked at the experimental primary-slot address. Not an installer."""
 import argparse, hashlib, json, struct
 from pathlib import Path
 BASE, LIMIT, FAMILY = 0x20000, 0xf0000, 0x9b7316e2
@@ -28,6 +28,6 @@ if __name__ == '__main__':
     # Exclusive creation prevents accidentally replacing existing firmware artifacts.
     with a.output.open('xb') as f:
         f.write(result)
-    print(json.dumps({'status':'DRAFT ONLY; no validated installation path',
+    print(json.dumps({'status':'EXPERIMENTAL; requires matching MCUboot signing key and memory layout',
                       'input_bytes':len(data), 'base':hex(BASE), 'family':hex(FAMILY),
                       'sha256':hashlib.sha256(result).hexdigest()}, indent=2))
