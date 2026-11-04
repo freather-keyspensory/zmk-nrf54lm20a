@@ -33,6 +33,7 @@ Actual hardware: Minew MX54BE13/ME54BS13 nRF54LM20A. Host: Apple Silicon macOS. 
 | Software USB detach/reconnect and MCU reboot | Passed, including USB typing afterward |
 | Physical cable replug / host reboot | Deferred / untested |
 | Physical keyboard matrix, EC/HE scanning | Not tested by this firmware baseline |
+| Two-board proprietary-radio diagnostics | TX/RX standalone and MCUboot builds, host codec tests, signed-package verification and UF2 reconstruction passed; RF hardware testing pending |
 
 Host checks include full UF2 reconstruction of the signed image, bounds/alignment checks, and imgtool rejection of a tampered payload. Hardware rejection of the tampered signed file was also observed; the previously confirmed application remained bootable.
 

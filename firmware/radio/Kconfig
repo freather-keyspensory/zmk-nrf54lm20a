@@ -1,0 +1,3 @@
+mainmenu "Minew 8 kHz radio diagnostic"
+source "Kconfig.zephyr"
+rsource "../upstream-zephyr/samples/subsys/usb/common/Kconfig.sample_usbd"

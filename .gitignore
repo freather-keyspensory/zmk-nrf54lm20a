@@ -30,6 +30,7 @@ firmware/port/zephyr
 firmware/bootloader/build*/
 firmware/bootloader/keys/
 firmware/bootloader/docs/
+firmware/radio/build/
 hardware/*
 !hardware/PORTING.md
 

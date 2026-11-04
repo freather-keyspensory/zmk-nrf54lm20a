@@ -12,4 +12,6 @@ jobs:
       - name: Test UF2 parser and converter with sanitizers
         run: bash firmware/bootloader/tests/run.sh
       - name: Compile Python tools
-        run: python3 -m compileall -q firmware/bootloader/tools firmware/bootloader/tests firmware/port/scripts
+        run: python3 -m compileall -q firmware/bootloader/tools firmware/bootloader/tests firmware/port/scripts firmware/radio/tools
+      - name: Test diagnostic radio frame parsing and sequence handling
+        run: bash firmware/radio/tests/run.sh

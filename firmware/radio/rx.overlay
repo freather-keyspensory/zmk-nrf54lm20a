@@ -1,0 +1,13 @@
+&usbhs_wrapper { status = "okay"; };
+zephyr_udc0: &usbhs { status = "okay"; };
+&xo24m { status = "okay"; };
+&vregusb { status = "okay"; };
+/ {
+ radio_hid: radio-hid {
+  compatible = "zephyr,hid-device";
+  label = "Minew RF diagnostic";
+  protocol-code = "none";
+  in-report-size = <32>;
+  in-polling-period-us = <125>;
+ };
+};
