@@ -6,7 +6,10 @@ endpoint. This is the timing bring-up stage, **not a ZMK wireless keyboard
 transport yet**. Both targets build in standalone and MCUboot layouts on the
 pinned macOS workspace. Local 0.3.0+1 packages passed signature verification,
 UF2 reconstruction/bounds checks and tampered-payload rejection by imgtool.
-Neither radio image has been flashed or measured on hardware yet.
+Receiver 0.3.0+1 has been installed temporarily on the original board: it boots,
+confirms its trial image and enumerates at USB High Speed (480 Mbps), with a
+125 us HID polling interval. The original ZMK 0.2.0+1 was restored afterward.
+TX has not been flashed, and two-board RF delivery remains untested.
 
 Nordic documents [proprietary radio rates up to 4 Mbps](https://www.nordicsemi.com/Products/nRF54LM20A).
 That PHY capability is not proof of an 8 kHz keyboard. The target here is a new
@@ -69,7 +72,8 @@ bootloader, not this application's USB interface.
 
 The fixed packet airtime is approximately 84 us at 4 Mbps (2-byte preamble,
 5-byte address, 32-byte payload, 3-byte CRC). This is a budget estimate, not a
-measured timing result. RF ramp/START behavior, timer-domain routing, timing
+measured timing result. RX initialization and its scheduler heartbeat passed a
+single-board smoke test. RF ramp/START behavior, timer-domain routing, timing
 margin, reception and sustained USB forwarding remain to be checked on hardware.
 
 Sequence comparisons handle 32-bit wrap, reject repeats/backward values, and
@@ -97,9 +101,36 @@ python firmware/radio/tools/capture.py --seconds 10
 
 The tool opens only a matching vendor HID device and fails on ambiguity.
 It reports fresh host delivery rate, gaps, repeats and malformed frames.
-Host batching affects timing; this is not scan-to-host latency. No connection
-or throughput result is currently claimed. A receiver USB accessory permission
-prompt may require Allow on macOS.
+Host batching affects timing; this is not scan-to-host latency. Receiver USB
+enumeration passed, but no wireless connection or throughput result is claimed.
+A receiver USB accessory permission prompt may require Allow on macOS.
+
+## Single-board USB smoke test — 2026-11-05
+
+The original board was updated through its existing UF2 bootloader to signed RX
+0.3.0+1. Its installed signed bytes matched the package on SWD readback.
+`radio_started` was 1 and the heartbeat advanced from 22 to 37 during that audit.
+RTT reported successful image confirmation. macOS approved the new accessory;
+both IOKit and libusb reported High Speed. Descriptor inspection showed
+`2fe3:0009`, endpoint `0x81`, 32-byte maximum packet and `bInterval=1` (125 us).
+
+Reproduce the read-only descriptor check using:
+
+```sh
+firmware/port/.venv/bin/python firmware/port/scripts/inspect_usb_hid.py --pid 0x0009
+```
+
+There was no transmitter connected, and radio/USB frame counters remained zero.
+This proves enumeration and application progress, not RF reception or sustained
+USB data delivery. After the test, the existing UF2 recovery request restored
+signed ZMK 0.2.0+1; its USB identity `2fe3:0007` returned at High Speed and RTT
+reported successful image confirmation.
+
+The complete restored signed ZMK image matched its saved package byte for byte,
+and the bootloader was unchanged. Every pre-existing settings byte was preserved;
+the only settings change was a new 16-byte ZMS entry containing the same four-byte
+value as the previous entry for that ID. The existing BLE bond reconnected to
+macOS. Final audit found the CPU running and the test-key request idle.
 
 ## Work after timing bring-up
 
