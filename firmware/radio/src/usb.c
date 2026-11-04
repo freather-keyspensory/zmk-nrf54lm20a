@@ -18,11 +18,18 @@ K_MSGQ_DEFINE(frames, FRAME_SIZE, 16, 4);
 K_SEM_DEFINE(available, 4, 4);
 UDC_STATIC_BUF_DEFINE(buffers, 4 * 64);
 static atomic_t ready, used;
+/* Explicit SWD-triggered USB load test; synthetic frames never mean keys. */
+volatile uint32_t radio_usb_bench_request, radio_usb_bench_completed, radio_usb_bench_errors;
+volatile uint64_t radio_usb_bench_elapsed_ns;
+static atomic_t radio_usb_bench_state; /* 0 idle, 1 active, 2 done, 3 failed */
+static uint64_t bench_first_cycle;
+#define BENCH_REPORTS 16000
 volatile uint32_t radio_usb_submitted, radio_usb_completed, radio_usb_dropped;
 volatile uint32_t radio_usb_errors;
 /* Called only for fresh validated frames, from RADIO ISR. Never blocks. */
 void radio_usb_enqueue(const uint8_t *frame)
 {
+ if (atomic_get(&radio_usb_bench_state) == 1) return;
  if (!atomic_get(&ready) || k_msgq_put(&frames, frame, K_NO_WAIT)) radio_usb_dropped++;
 }
 static void iface_ready(const struct device *dev, bool value)
@@ -32,7 +39,17 @@ static void done(const struct device *dev, const uint8_t *report)
  ARG_UNUSED(dev);
  ptrdiff_t offset = report - buffers;
  if (offset >= 0 && offset < sizeof(buffers) && !(offset % 64)) {
-  radio_usb_completed++; atomic_clear_bit(&used, offset / 64); k_sem_give(&available);
+  radio_usb_completed++; atomic_clear_bit(&used, offset / 64);
+  if (atomic_get(&radio_usb_bench_state) == 1) {
+   uint64_t now = k_cycle_get_64();
+   uint32_t count = ++radio_usb_bench_completed;
+   if (count == 1) bench_first_cycle = now;
+   if (count == BENCH_REPORTS) {
+    radio_usb_bench_elapsed_ns = k_cyc_to_ns_floor64(now - bench_first_cycle);
+    atomic_set(&radio_usb_bench_state, radio_usb_bench_errors ? 3 : 2);
+   }
+  }
+  k_sem_give(&available);
  }
 }
 static int get_size(const struct device *dev, uint8_t type, uint8_t id)
@@ -65,19 +82,59 @@ static void forward(void *a, void *b, void *c)
  uint8_t frame[FRAME_SIZE];
  for (;;) {
   k_msgq_get(&frames, frame, K_FOREVER);
-  if (k_sem_take(&available, K_MSEC(2))) { radio_usb_dropped++; continue; }
+  if (k_sem_take(&available, K_MSEC(2))) {
+   radio_usb_dropped++;
+   if (atomic_get(&radio_usb_bench_state) == 1) radio_usb_bench_errors++;
+   continue;
+  }
   bool submitted = false;
   for (int i = 0; i < 4; i++) {
    if (!atomic_test_and_set_bit(&used, i)) {
     memcpy(buffers + i * 64, frame, FRAME_SIZE);
     int err = atomic_get(&ready) ? hid_device_submit_report(hid, FRAME_SIZE, buffers + i * 64) : -ENODEV;
     if (err) {
-     radio_usb_errors++; atomic_clear_bit(&used, i); k_sem_give(&available);
+     radio_usb_errors++;
+     if (atomic_get(&radio_usb_bench_state) == 1) radio_usb_bench_errors++;
+     atomic_clear_bit(&used, i); k_sem_give(&available);
     } else { radio_usb_submitted++; }
     submitted = true; break;
    }
   }
-  if (!submitted) { radio_usb_errors++; k_sem_give(&available); }
+  if (!submitted) {
+   radio_usb_errors++;
+   if (atomic_get(&radio_usb_bench_state) == 1) radio_usb_bench_errors++;
+   k_sem_give(&available);
+  }
  }
 }
 K_THREAD_DEFINE(forward_thread, 2048, forward, NULL, NULL, NULL, 3, 0, 0);
+
+static void benchmark(void *a, void *b, void *c)
+{
+ ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
+ uint8_t frame[FRAME_SIZE];
+ for (;;) {
+  k_sleep(K_MSEC(20));
+  if (radio_usb_bench_request != 1) continue;
+  radio_usb_bench_request = 0;
+  radio_usb_bench_completed = 0; radio_usb_bench_errors = 0;
+  radio_usb_bench_elapsed_ns = 0;
+  if (!atomic_get(&ready) || atomic_get(&used) || k_msgq_num_used_get(&frames)) {
+   radio_usb_bench_errors = 1; atomic_set(&radio_usb_bench_state, 3); continue;
+  }
+  atomic_set(&radio_usb_bench_state, 1);
+  int64_t deadline = k_uptime_get() + 10000;
+  for (uint32_t i = 0; i < BENCH_REPORTS; i++) {
+   frame_make(frame, i);
+   if (!atomic_get(&ready) || k_uptime_get() >= deadline ||
+       k_msgq_put(&frames, frame, K_MSEC(100))) {
+    radio_usb_bench_errors++; break;
+   }
+  }
+  while (atomic_get(&radio_usb_bench_state) == 1 && k_uptime_get() < deadline) k_sleep(K_MSEC(5));
+  if (atomic_get(&radio_usb_bench_state) == 1) {
+   radio_usb_bench_errors++; atomic_set(&radio_usb_bench_state, 3);
+  }
+ }
+}
+K_THREAD_DEFINE(benchmark_thread, 2048, benchmark, NULL, NULL, NULL, 4, 0, 0);

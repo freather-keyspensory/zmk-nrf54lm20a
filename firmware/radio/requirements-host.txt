@@ -1,0 +1,2 @@
+# Optional host HID capture/benchmark tools; use the port's existing venv.
+hidapi==0.15.0

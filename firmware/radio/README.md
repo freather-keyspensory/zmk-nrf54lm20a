@@ -132,6 +132,70 @@ the only settings change was a new 16-byte ZMS entry containing the same four-by
 value as the previous entry for that ID. The existing BLE bond reconnected to
 macOS. Final audit found the CPU running and the test-key request idle.
 
+## Receiver USB load measurement — 2026-11-05
+
+Signed RX **0.3.0+2** adds an explicit SWD-triggered synthetic USB test. It
+generates 16,000 numbered 32-byte frames through the same queue, forwarding
+thread, buffer pool and USB endpoint used by received RF frames. USB polling
+provides backpressure; this bypasses RF and scanning. RF forwarding is paused
+while the test is active. Start with an idle receiver and no transmitter.
+
+Writing 1 to `radio_usb_bench_request` starts the test. Resolve its address
+from the exact running ELF. `radio_usb_bench_state` is 0 idle, 1 active, 2
+complete, or 3 failed. Completion counters and first-to-last hardware-cycle
+timing are readable through SWD. The benchmark has a ten-second timeout;
+disconnect/cancellation recovery during a benchmark has not been tested.
+
+The host tool opens the vendor HID device before triggering the request, checks
+all sequence numbers/payloads and compares host receipt with device completions:
+
+```sh
+firmware/port/.venv/bin/python -m pip install -r firmware/radio/requirements-host.txt
+firmware/port/.venv/bin/python firmware/radio/tools/measure_usb.py \
+  --elf firmware/releases/minew-radio/rx/0.3.0+2/app.elf \
+  --nm firmware/toolchains/zephyr-sdk-0.16.8/arm-zephyr-eabi/bin/arm-zephyr-eabi-nm \
+  --logs firmware/bootloader/docs/receiver-rate-probe \
+  --output firmware/bootloader/docs/receiver-rate.json
+```
+
+Use a new log directory for each run. Build/package RX 0.3.0+2 with the same
+commands above, changing the version argument, before installation through a
+compatible bootloader. Never pass another build's ELF. `passed` in the JSON
+means the expected 16,000 reports passed integrity/count checks; inspect the
+reported rates separately.
+
+Six approximately two-second bursts were tested on the original board and Mac:
+
+| Run | Device completions/s | Host reports | Host active-span reports/s | Sequence gaps |
+|---|---:|---:|---:|---:|
+| 1 | 7,999.0 | 16,000 | 7,999.5 | 0 |
+| 2 | 7,999.5 | 16,000 | 8,000.2 | 0 |
+| 3 | 7,999.6 | 15,956 | 7,978.0 | 44 |
+| 4 | 8,000.1 | 16,000 | 8,000.4 | 0 |
+| 5 | 7,999.0 | 16,000 | 7,999.5 | 0 |
+| 6 | 7,998.6 | 16,000 | 7,999.3 | 0 |
+
+Device totals: 96,000 submissions and completion callbacks, zero recorded USB
+submission errors or forwarding-queue drops. Host totals: 95,956 reports; no
+malformed frames or duplicate/backward sequences. Run 3's missing reports are
+retained as a failure, not treated as a loss-free run.
+
+After run 3, the host reader was changed to buffer received reports and validate
+after the burst, reducing work in the read loop. Runs 4–6 used this version and
+each received all 16,000 reports. The upstream [HIDAPI 0.15 macOS implementation](https://github.com/libusb/hidapi/blob/hidapi-0.15.0/mac/hid.c#L829-L848)
+discards older entries when its small input queue fills. Host stalls are a
+plausible explanation for the earlier gaps, but the loss was not conclusively
+localized. These tests do not establish zero-loss operation under arbitrary
+host load or long-duration stress.
+
+The measured USB path reaches approximately 8 kHz, with fresh synthetic sequence
+numbers, on a 480 Mbps High Speed bus. This is not a 480 Mbps payload-throughput
+test or an RF/scanning/scan-to-host latency result. The original signed ZMK
+0.2.0+1 was restored after the measurements.
+The restored signed image matched its package on complete readback, the
+bootloader was unchanged, and all pre-existing settings bytes were preserved.
+The CPU was running with an idle test-key request at the final audit.
+
 ## Work after timing bring-up
 
 1. Preserve the original board's working signed ZMK package; identify and back
