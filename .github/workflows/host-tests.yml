@@ -16,7 +16,7 @@ jobs:
       - name: Test diagnostic radio frame parsing and sequence handling
         run: bash firmware/radio/tests/run.sh
   macos-collector:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Compile direct IOHID collector
