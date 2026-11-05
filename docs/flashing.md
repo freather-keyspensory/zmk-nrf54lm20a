@@ -49,6 +49,50 @@ PY
 
 Do not distribute full backups: they contain Bluetooth bond material. The factory tool does not alter UICR/OTP, but changing the boot layout is still a substantial device change. Preserve the backup and working SWD recovery path.
 
+## Backup when the main debug port is protected
+
+Some factory-programmed boards have main-core APPROTECT enabled in UICR while
+auxiliary AHB access port 1 remains open. CPU registers may read as all ones
+through AP1; that does **not** establish that the CPU is halted. Never infer
+blank memory or a halted CPU from a blocked access port.
+
+`backup_aux_dll.py` identifies the nRF54LM20A through AP1, records its unique
+device ID privately, saves all 2036 KiB of RRAM plus 4 KiB of UICR, then reads
+all RRAM again and compares every byte. It also verifies UICR is unchanged.
+It performs no target-memory writes, halt, reset, erase or unlock. The CPU's
+state is not observable through this port. The two-pass comparison is required
+because application firmware may still be running. If any byte differs, the
+tool does not mark the backup complete. Keep the output private.
+
+```sh
+firmware/port/.venv/bin/python firmware/port/scripts/backup_aux_dll.py \
+  firmware/backups/my-board-factory-aux
+```
+
+The default invocation of `recover_aux_dll.py` produces a read-only recovery
+plan after verifying the complete RRAM/UICR backup and matching the physical
+target's unique ID and protection state:
+
+```sh
+firmware/port/.venv/bin/python firmware/port/scripts/recover_aux_dll.py \
+  --backup firmware/backups/my-board-factory-aux \
+  --logs firmware/backups/my-board-recovery-plan
+```
+
+Its separate `--execute-erase-rram-and-uicr` flag is **destructive**. Never invoke
+it automatically or without explicit authorization for the backed-up board.
+Nordic's [NAN-047 recovery procedure](https://docs.nordicsemi.com/r/bundle/nan_047/page/app/nan_production_programming/nrf54l/nrf54l_disable_approtect.html)
+uses CTRL-AP ERASEALL followed by a hard reset. Existing firmware, SRAM and UICR
+configuration are erased; OTP is not programmed. This is not a firmware update
+and does not preserve the original UICR configuration on the running device.
+The utility leaves the recovered CPU halted. Take a new verified baseline
+backup before using the normal factory flasher, which compares against the
+pre-installation bytes. Do not power-cycle an erased or partly programmed board
+and assume a working application is installed.
+
+The AP1 tools are experimental. Document actual backup, plan and recovery
+results separately; the existence of the utility is not a hardware test result.
+
 ## Subsequent application update through USB
 
 Build/sign with the same private key as the installed bootloader, using a new version/output directory. Enter recovery using the verified retained request or double-reset mechanism, check `INFO_UF2.TXT`, and copy the package's `update.uf2` to `MINEWBOOT`.
