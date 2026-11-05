@@ -13,5 +13,54 @@ config MINEW_RADIO_FREQUENCY_MHZ
  help
    Both transmitter and receiver must use the same frequency.
    This is a fixed-channel diagnostic, not adaptive channel hopping.
+config MINEW_RADIO_CRYPTO_PROBE
+ bool "Public-vector AEAD self-test and timing probe"
+ depends on MINEW_RADIO_RELIABLE
+ select PSA_CRYPTO
+ select PSA_WANT_ALG_CCM
+ select PSA_WANT_KEY_TYPE_AES
+ select PSA_WANT_ALG_CHACHA20_POLY1305
+ select PSA_WANT_KEY_TYPE_CHACHA20
+ help
+   Tests the pinned PSA provider before starting the existing unencrypted
+   diagnostic. Uses a public test key, never a pairing secret. This option
+   does not enable secure RF and must not be shipped as a secure transport.
+config MINEW_RADIO_DTLS_PROBE
+ bool "In-memory public-key DTLS conformance and timing probe"
+ depends on MINEW_RADIO_CRYPTO_PROBE
+ select MINEW_RADIO_DTLS
+config MINEW_RADIO_DTLS
+ bool
+ select PSA_CRYPTO
+ select PSA_WANT_ALG_CHACHA20_POLY1305
+ select PSA_WANT_KEY_TYPE_CHACHA20
+ select MBEDTLS_SSL_PROTO_TLS1_2
+ select MBEDTLS_SSL_PROTO_DTLS
+ select MBEDTLS_KEY_EXCHANGE_ECDHE_PSK_ENABLED
+ select MBEDTLS_SSL_EXTENDED_MASTER_SECRET
+ select PSA_WANT_ALG_TLS12_PRF
+ select PSA_WANT_ALG_TLS12_PSK_TO_MS
+ select PSA_WANT_ALG_SHA_256
+ select PSA_WANT_ALG_ECDH
+ select PSA_WANT_KEY_TYPE_DERIVE
+ select PSA_WANT_KEY_TYPE_HMAC
+ select PSA_WANT_KEY_TYPE_ECC_PUBLIC_KEY
+ select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_IMPORT
+ select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_EXPORT
+ select PSA_WANT_KEY_TYPE_ECC_KEY_PAIR_GENERATE
+ select PSA_WANT_ECC_SECP_R1_256
+config MINEW_RADIO_SECURE
+ bool "Experimental provisioned DTLS radio transport"
+ depends on MINEW_RADIO_RELIABLE && !MINEW_RADIO_CRYPTO_PROBE
+ select MINEW_RADIO_DTLS
+ select FLASH
+ select FLASH_MAP
+ select FLASH_PAGE_LAYOUT
+ select SETTINGS
+ select ZMS
+ help
+   Requires a per-pair secret provisioned locally. No fixed test key or
+   plaintext RF fallback. Uses the same ZMS format as the existing ZMK
+   settings; never enable forced mount or replace it with NVS.
 source "Kconfig.zephyr"
 rsource "../upstream-zephyr/samples/subsys/usb/common/Kconfig.sample_usbd"

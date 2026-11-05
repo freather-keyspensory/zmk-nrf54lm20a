@@ -31,6 +31,7 @@ firmware/bootloader/build*/
 firmware/bootloader/keys/
 firmware/bootloader/docs/
 firmware/radio/build/
+firmware/radio/keys/
 hardware/*
 !hardware/PORTING.md
 

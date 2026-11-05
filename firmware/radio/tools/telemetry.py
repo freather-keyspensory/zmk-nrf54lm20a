@@ -1,4 +1,4 @@
-"""Read-only receiver telemetry, feature report zero, schema versions 1..7."""
+"""Read-only receiver telemetry, feature report zero, schema versions 1..12."""
 import struct
 
 FIELDS = (
@@ -22,6 +22,9 @@ LINK_FIELDS = (
 LINK_COUNTERS = tuple(k for k in LINK_FIELDS if k not in (
     "link_local_epoch", "link_remote_epoch", "link_state", "link_channel",
     "link_max_queue", "link_max_ack_us", "link_reserved"))
+SECURITY_FIELDS = ("security_state", "security_sessions", "security_failures",
+                   "security_wire_sent", "security_wire_received", "security_app_sent",
+                   "security_app_received", "security_pair_id_crc", "security_provision_status", "security_pair_generation")
 
 
 def decode(data):
@@ -29,29 +32,41 @@ def decode(data):
     # HIDAPI backends may include the unnumbered report's leading zero ID.
     if data[:5] == b"\0M8ST":
         data = data[1:]
-    if len(data) not in (96, 112, 208) or data[:4] != b"M8ST":
+    if len(data) not in (96, 112, 208, 248) or data[:4] != b"M8ST":
         raise ValueError("Expected M8ST receiver telemetry")
     words = struct.unpack("<" + "I" * (len(data) // 4), data)
-    if (words[1], len(data)) not in ((1, 96), (2, 112), (3, 208), (4, 208), (5, 208), (6, 208), (7, 208)) or words[23] != 0:
+    if (words[1], len(data)) not in ((1, 96), (2, 112), (3, 208), (4, 208), (5, 208), (6, 208), (7, 208), (8, 248), (9, 248), (10, 248), (11, 248), (12, 248)) or words[23] != 0:
         raise ValueError("Unsupported receiver telemetry version/reserved field")
     result = dict(zip(FIELDS, words[2:24]))
     if words[1] >= 2:
         result.update(zip(REPORT_FIELDS, words[24:28]))
         if result["usb_report_size"] not in (32, 64):
             raise ValueError("Unsupported input report size")
-    if words[1] in (3, 4, 5, 6, 7):
-        result.update(zip(LINK_FIELDS, words[28:]))
-        result["link_wire_version"] = 2 if words[1] >= 4 else 1
+    if words[1] in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12):
+        result.update(zip(LINK_FIELDS, words[28:52]))
+        result["link_wire_version"] = 4 if words[1] >= 9 else 3 if words[1] == 8 else 2 if words[1] >= 4 else 1
         result["link_receive_window_guard"] = words[1] >= 5
         result["link_idle_detection"] = words[1] >= 6
         result["link_session_purge_safe"] = words[1] >= 7
-        if result["link_reserved"]:
+        result["control_report_size"] = len(data)
+        if result["link_reserved"] and words[1] < 12:
             raise ValueError("Unsupported link telemetry reserved field")
+    if words[1] in (8, 9, 10, 11, 12):
+        result.update(zip(SECURITY_FIELDS, words[52:62]))
+        result["security_dtls"] = True
+        result["security_window_packets"] = 4 if words[1] >= 9 else 1
+        result["security_async_receiver"] = words[1] >= 10
+        result["security_wire_channel_hold"] = words[1] >= 11
+        result["security_provision_ack"] = words[1] >= 12
+        if words[1] >= 12:
+            result["security_provision_token"] = result["link_reserved"]
+        if result["security_state"] > 2:
+            raise ValueError("Unknown security state")
     return result
 
 
 def read(device):
-    return decode(device.get_feature_report(0, 209))
+    return decode(device.get_feature_report(0, 249))
 
 
 def difference(before, after):
@@ -69,5 +84,9 @@ def difference(before, after):
         raise ValueError("Receiver boot session changed during capture")
     if "link_local_epoch" in before:
         keys += list(LINK_COUNTERS)
+    if before.get("security_dtls") != after.get("security_dtls"):
+        raise ValueError("Security profile changed during capture")
+    if before.get("security_dtls"):
+        keys += list(SECURITY_FIELDS[1:7])
     return dict(counter_window_ms=elapsed,
                 counters={k: (after[k] - before[k]) & 0xffffffff for k in keys})

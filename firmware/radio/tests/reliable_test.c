@@ -26,7 +26,7 @@ int main(void)
  data(p, 123, UINT32_MAX - 3, ARQ_BATCH);
  assert(arq_valid(p, sizeof(p)));
  p[ARQ_HEADER + 28] ^= 1; assert(!arq_valid(p, sizeof(p)));
- arq_header(p, ARQ_ACK, 123, 7, 7, ARQ_COMMITTED);
+ arq_header(p, ARQ_ACK, 123, 7, ARQ_WIRE_VERSION >= 4 ? 0 : 7, ARQ_COMMITTED);
  frame_put32(p + 16, 456); assert(arq_valid(p, 20));
  p[13] = 9; assert(!arq_valid(p, 20)); p[13] = ARQ_COMMITTED;
  frame_put32(p + 16, 0); assert(!arq_valid(p, 20));
@@ -76,5 +76,32 @@ int main(void)
  w = (struct arq_receive_window){UINT32_MAX - 99, 200, false};
  assert(!arq_receive_expired(&w, 50, false, 1000));
  assert(arq_receive_expired(&w, 100, false, 1000));
+ if (ARQ_WIRE_VERSION >= 4) {
+  struct arq_receiver window = {0}; assert(arq_begin(&window, 111));
+  unsigned delivered_window = 0;
+  for (unsigned i = 0; i < ARQ_WINDOW; i++) {
+   if (i == 2) continue; /* lost middle DATA; later DATA must not advance */
+   int state = arq_classify(&window, i*ARQ_BATCH, ARQ_BATCH);
+   if (i < 2) { assert(state == ARQ_EXPECTED); arq_commit(&window, i*ARQ_BATCH, ARQ_BATCH); delivered_window += ARQ_BATCH; }
+   else assert(state == ARQ_WRONG_SEQUENCE);
+  }
+  assert(arq_window_progress(0, window.expected) == 2);
+  for (unsigned i = 2; i < ARQ_WINDOW; i++) {
+   assert(arq_classify(&window, i*ARQ_BATCH, ARQ_BATCH) == ARQ_EXPECTED);
+   arq_commit(&window, i*ARQ_BATCH, ARQ_BATCH); delivered_window += ARQ_BATCH;
+  }
+  assert(delivered_window == ARQ_WINDOW*ARQ_BATCH);
+  /* Lost cumulative ACK: a poll must recover that exact commit point. A
+   * late retransmission of any retained packet cannot redeliver a sample. */
+  assert(arq_window_progress(0, window.expected) == ARQ_WINDOW);
+  for (unsigned i = 0; i < ARQ_WINDOW; i++) assert(arq_classify(&window, i*ARQ_BATCH, ARQ_BATCH) == ARQ_DUPLICATE);
+  assert(arq_window_progress(UINT32_MAX-4, ARQ_WINDOW*ARQ_BATCH-5) == ARQ_WINDOW);
+  assert(arq_window_progress(0, 1) == -1);
+  assert(arq_window_progress(0, ARQ_WINDOW*ARQ_BATCH+ARQ_BATCH) == -1);
+  arq_header(p, ARQ_POLL, 111, 0, 0, 0); assert(arq_valid(p, ARQ_HEADER));
+  p[12] = 1; assert(!arq_valid(p, ARQ_HEADER));
+  data(p, 111, 0, ARQ_BATCH); p[13] = ARQ_ACK_REQUEST; assert(arq_valid(p, sizeof(p)));
+  p[13] = 2; assert(!arq_valid(p, sizeof(p)));
+ }
  return 0;
 }

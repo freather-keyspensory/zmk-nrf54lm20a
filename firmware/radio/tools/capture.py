@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--shared", action="store_true", help="Opt into HIDAPI's public macOS shared-open mode for a separate controller")
     parser.add_argument("--native-macos", action="store_true", help="Direct buffered IOHID input collector; requires --shared and separate fault controller")
     parser.add_argument("--ready-file", type=Path, help="Create a new marker after opening and validating the receiver")
-    parser.add_argument("--inject-command", choices=("drop-data", "drop-ack", "pause-radio", "channel"), help="Explicit bounded test on the same HID handle while capture continues")
+    parser.add_argument("--inject-command", choices=("drop-data", "drop-ack", "pause-radio", "channel", "tamper-wire", "replay-wire", "replay-old-session", "inject-plaintext"), help="Explicit bounded test on the same HID handle while capture continues")
     parser.add_argument("--inject-value", type=int)
     parser.add_argument("--inject-after", type=float, default=1)
     args = parser.parse_args()
@@ -84,7 +84,7 @@ def main():
         start = time.perf_counter_ns()
         try:
             sent = dev.send_feature_report(b"\0" + payload)
-            if sent not in (208, 209):
+            if sent not in (len(payload), len(payload)+1):
                 raise RuntimeError("Short control transfer")
             injection["submitted"] = True
         except Exception as e:
@@ -97,6 +97,7 @@ def main():
         if payload:
             if "link_local_epoch" not in before:
                 raise RuntimeError("Fault commands require reliable receiver firmware")
+            payload = encode(args.inject_command, args.inject_value, before.get("control_report_size", 208))
         if args.ready_file and not args.native_macos:
             with args.ready_file.open("x") as ready:
                 ready.write("ready\n")

@@ -3,13 +3,28 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 role="${1:-}"; version="${2:-}"
 variant="${3:-legacy}"
-case "$variant" in legacy) build_name="$role-mcuboot" ;; reliable) build_name="$role-mcuboot-reliable" ;; *) echo 'Unknown variant' >&2; exit 2 ;; esac
-case "$role" in tx|rx) ;; *) echo 'Usage: package.sh tx|rx VERSION [legacy|reliable]' >&2; exit 2 ;; esac
+case "$variant" in legacy) build_name="$role-mcuboot" ;; reliable|crypto-probe|dtls-probe|secure) build_name="$role-mcuboot-$variant" ;; *) echo 'Unknown variant' >&2; exit 2 ;; esac
+case "$role" in tx|rx) ;; *) echo 'Usage: package.sh tx|rx VERSION [legacy|reliable|crypto-probe|dtls-probe|secure]' >&2; exit 2 ;; esac
 config="$root/build/$build_name/zephyr/.config"
-if [[ "$variant" == reliable ]]; then
+if [[ "$variant" != legacy ]]; then
  rg -q '^CONFIG_MINEW_RADIO_RELIABLE=y$' "$config" || { echo 'Not a reliable build' >&2; exit 2; }
 elif rg -q '^CONFIG_MINEW_RADIO_RELIABLE=y$' "$config"; then
  echo 'Refusing to label a reliable build as legacy' >&2; exit 2
+fi
+if [[ "$variant" == crypto-probe || "$variant" == dtls-probe ]]; then
+ rg -q '^CONFIG_MINEW_RADIO_CRYPTO_PROBE=y$' "$config" || { echo 'Not a crypto probe build' >&2; exit 2; }
+elif rg -q '^CONFIG_MINEW_RADIO_CRYPTO_PROBE=y$' "$config"; then
+ echo 'Refusing to mislabel a public-test-key crypto probe' >&2; exit 2
+fi
+if [[ "$variant" == dtls-probe ]]; then
+ rg -q '^CONFIG_MINEW_RADIO_DTLS_PROBE=y$' "$config" || { echo 'Not a DTLS probe build' >&2; exit 2; }
+elif rg -q '^CONFIG_MINEW_RADIO_DTLS_PROBE=y$' "$config"; then
+ echo 'Refusing to mislabel a DTLS probe' >&2; exit 2
+fi
+if [[ "$variant" == secure ]]; then
+ rg -q '^CONFIG_MINEW_RADIO_SECURE=y$' "$config" || { echo 'Not a secure build' >&2; exit 2; }
+elif rg -q '^CONFIG_MINEW_RADIO_SECURE=y$' "$config"; then
+ echo 'Refusing to mislabel a secure build' >&2; exit 2
 fi
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+\+[0-9]+$ ]] || { echo 'Use a version such as 0.3.0+1' >&2; exit 2; }
 out="$root/../releases/minew-radio/$role/$version"

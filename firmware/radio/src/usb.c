@@ -12,7 +12,13 @@
 #include "reliable.h"
 extern volatile uint32_t radio_link_stats[LS_COUNT];
 int radio_link_control(uint32_t op, uint32_t value);
+#if IS_ENABLED(CONFIG_MINEW_RADIO_SECURE)
+#include "secure_pair.h"
+extern volatile uint32_t radio_security_stats[10];
+#define FEATURE_SIZE 248
+#else
 #define FEATURE_SIZE 208
+#endif
 #else
 #define FEATURE_SIZE 112
 #endif
@@ -125,7 +131,7 @@ static int get_report(const struct device *dev, uint8_t type, uint8_t id, uint16
  if (type != HID_REPORT_TYPE_FEATURE || id != 0) return -ENOTSUP;
  uint32_t words[FEATURE_SIZE / 4];
  words[0] = 0x5453384d; /* M8ST, little endian */
- words[1] = IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE) ? 7 : 2;
+ words[1] = IS_ENABLED(CONFIG_MINEW_RADIO_SECURE) ? 12 : IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE) ? 7 : 2;
  words[2] = k_uptime_get_32();
  words[3] = CONFIG_MINEW_RADIO_FREQUENCY_MHZ;
  /* Snapshot only loads while locked; serialize outside the RF critical path. */
@@ -145,6 +151,12 @@ static int get_report(const struct device *dev, uint8_t type, uint8_t id, uint16
 #if IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE)
  for (size_t i = 0; i < LS_COUNT; i++) words[28 + i] = radio_link_stats[i];
 #endif
+#if IS_ENABLED(CONFIG_MINEW_RADIO_SECURE)
+ for (size_t i = 0; i < 10; i++) words[52 + i] = radio_security_stats[i];
+ /* Read completion status and token together, never a cached earlier success. */
+ words[51] = radio_pair_completed_token;
+ words[60] = radio_pair_mailbox.response; words[61] = radio_pair_mailbox.generation;
+#endif
  irq_unlock(key);
  uint8_t report[FEATURE_SIZE];
  for (size_t i = 0; i < ARRAY_SIZE(words); i++) sys_put_le32(words[i], report + i * 4);
@@ -157,6 +169,13 @@ static int verify_control(const struct device *dev, uint8_t type, uint8_t id, ui
 { ARG_UNUSED(dev); return type == HID_REPORT_TYPE_FEATURE && id == 0 && len == FEATURE_SIZE ? 0 : -EINVAL; }
 static int set_control(const struct device *dev, uint8_t type, uint8_t id, uint16_t len, const uint8_t *buf)
 {
+#if IS_ENABLED(CONFIG_MINEW_RADIO_SECURE)
+ if (!verify_control(dev, type, id, len) && !memcmp(buf, "R8CT", 4) &&
+     sys_get_le32(buf+4) == 3 && sys_get_le32(buf+8) == 7 && sys_get_le32(buf+12) <= 1) {
+  for (size_t i = 84; i < FEATURE_SIZE; i++) if (buf[i]) return -EINVAL;
+  return rf_pair_queue(buf+16, sys_get_le32(buf+12) == 1, sys_get_le32(buf+80));
+ }
+#endif
  if (verify_control(dev, type, id, len) || memcmp(buf, "R8CT", 4) || sys_get_le32(buf + 4) != 1) return -EINVAL;
  for (size_t i = 16; i < FEATURE_SIZE; i++) if (buf[i]) return -EINVAL;
  return radio_link_control(sys_get_le32(buf + 8), sys_get_le32(buf + 12));

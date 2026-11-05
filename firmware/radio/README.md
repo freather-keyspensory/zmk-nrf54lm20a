@@ -1,6 +1,12 @@
 # Experimental 8 kHz proprietary radio diagnostics
 
-The current opt-in **reliable** transport adds ACK/retry, boot sessions, bounded
+The opt-in **secure** variant adds wired private pairing and DTLS authentication,
+encryption and replay protection to the diagnostic transport. See
+[security design, provisioning and current evidence](../../docs/radio-security.md).
+It has a separate RF address and build directory. Neither `legacy` nor `reliable`
+authenticates its peer. All variants remain diagnostic sample transports.
+
+The opt-in **reliable** transport adds ACK/retry, boot sessions, bounded
 USB backpressure, channel reacquisition and automatic restart recovery. See
 [reliability design and hardware evidence](../../docs/radio-reliability.md) for
 its separate build commands and limitations. The default **legacy** transport
@@ -38,8 +44,9 @@ bash firmware/radio/build.sh rx
 ELFs and binaries are under `firmware/radio/build/{tx,rx}/zephyr/`. These first
 diagnostics are **standalone address-zero images**. They cannot be copied to
 the existing UF2 drive or installed into the MCUboot application slot. Do not
-overwrite the working bootloader just to try them. No script in this directory
-flashes a board.
+overwrite the working bootloader just to try them. Build and package commands do not flash a board. The separate guarded
+`install_uf2.py` tool explicitly copies an update to a uniquely matched recovery
+drive; pairing tools explicitly write credentials over trusted wires.
 
 For an already installed compatible bootloader, build the separate slot-linked
 variants and sign using your own local key matching that bootloader:

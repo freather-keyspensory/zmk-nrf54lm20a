@@ -11,7 +11,7 @@ This is a pinned compatibility port of **ZMK v0.3.0 to a newer Zephyr**, not a c
 - `firmware/port/`: Minew board, one-key test configuration, legacy kscan compatibility, and SWD tools.
 - `firmware/bootloader/`: UF2 virtual drive, parser, signed MCUboot integration, packaging, and tests.
 - `firmware/patches/`: minimal patches against exact upstream revisions.
-- `firmware/radio/`: experimental two-board proprietary-radio diagnostics. Reliable ACK/retry and automatic restart recovery passed controlled faults; three final 60-second captures delivered 1,440,010 fresh samples near 8 kHz with zero observed host gaps/duplicates or recorded RF gaps/USB drops/errors. See [reliability evidence](docs/radio-reliability.md). ZMK radio integration and pairing/security remain future work.
+- `firmware/radio/`: experimental two-board proprietary-radio diagnostics. Private wired pairing, DTLS encryption/authentication, replay rejection and ACK/retry recovery passed controlled tests. Three final 60-second encrypted captures delivered 1,440,008 fresh samples near 8 kHz with zero observed sample gaps/duplicates or recorded USB drops/errors. See [security evidence](docs/radio-security.md) and the [earlier reliable baseline](docs/radio-reliability.md). ZMK keyboard report integration remains future work.
 - `hardware/`: firmware-facing integration notes. Separate local PCB experiments are not included in this firmware baseline.
 - `docs/`: public build/test documentation.
 

@@ -15,6 +15,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "port/scripts"))
 from swd_dll import DllSWD
 from telemetry import LINK_FIELDS
+from pairing import image_hash_location
 
 
 def main():
@@ -40,7 +41,9 @@ def main():
     if symbols.get("radio_link_stats", (0, 0))[1] != 4 * len(LINK_FIELDS):
         p.error("ELF does not have the expected reliable transmitter ABI")
     expected = json.loads(a.identity.read_text())["device_id_private"]
-    header = a.signed_image.read_bytes()[:32]
+    image = a.signed_image.read_bytes()
+    hash_offset, expected_hash = image_hash_location(image)
+    header = image[:32]
     if len(header) != 32 or header[:4] != bytes.fromhex("3db8f396"):
         p.error("A signed MCUboot image is required")
     a.logs.mkdir(parents=True, exist_ok=False)
@@ -49,6 +52,10 @@ def main():
         s.identify()
         if s.read(0xffc304, 8).hex() != expected or s.read(0x20000, 32) != header:
             raise RuntimeError("Unique target or installed image header mismatch")
+        base = (0x20000 + hash_offset) & ~3
+        skip = 0x20000 + hash_offset - base
+        if s.read(base, (skip + 32 + 3) & ~3)[skip:skip+32] != expected_hash:
+            raise RuntimeError("Installed image hash differs from the exact ELF package")
         result = {k: s.read32(symbols[k][0]) for k in
                   ("radio_started", "radio_heartbeat", "radio_fresh", "radio_last_sequence")}
         result["link"] = dict(zip(LINK_FIELDS, struct.unpack("<24I", s.read(symbols["radio_link_stats"][0], 96))))

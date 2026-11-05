@@ -1,4 +1,4 @@
-# Test status — 2026-11-05
+# Test status — 2026-11-06
 
 Actual hardware: Minew MX54BE13/ME54BS13 nRF54LM20A. Host: Apple Silicon macOS. Probe: an older J-Link OB through a raw CoreSight transport. These results do not establish XIAO or Windows compatibility.
 
@@ -131,10 +131,10 @@ These hashes identify local development builds; new signing keys or rebuilt depe
 
 Before the radio diagnostics, Board A ran signed ZMK **0.2.0+1**, with USB preferred and the High Speed HID endpoint configured for 125 us polling. That signed package is preserved locally for restoration. See [USB HID report](usb-hid.md) for descriptor, throughput, switching and reboot evidence. Physical replug was deferred by the owner. No Windows or host-reboot result is claimed.
 
-## Current two-board test state
+## Previous reliable diagnostic baseline
 
-Both boards have the patched MCUboot bootloader. Board A now runs reliable TX
-**0.4.0+3**; Board B runs reliable RX **0.4.0+5**, with ACK/retry, boot sessions,
+At this earlier checkpoint, both boards had the patched MCUboot bootloader. Board A ran reliable TX
+**0.4.0+3**; Board B ran reliable RX **0.4.0+5**, with ACK/retry, boot sessions,
 USB backpressure and reacquisition across 2408/2444/2474 MHz. These remain
 vendor-HID diagnostics and do not inject keyboard keys.
 
@@ -160,3 +160,23 @@ eight-sample batching can add 875 us before RF and host callback gaps reached
 about 9.6 ms without sequence loss. Authenticated pairing/encryption, ZMK report
 integration, physical scanning and end-to-end latency remain subsequent work.
 Physical power-loss/replug, Windows and host-reboot testing remain unverified.
+
+
+## Current authenticated two-board diagnostics
+
+Board A now runs signed secure TX **0.5.0+3** and B secure RX **0.5.0+7**.
+The authenticated diagnostic phase passed 23 final fault/restart capture windows,
+same-identity wrong-secret rejection, malformed/implicit replacement rejection,
+idempotent provisioning and explicit re-pairing. Three 60-second encrypted
+captures delivered **1,440,008 fresh samples** near 8 kHz with zero observed host
+gaps/duplicates, RF gaps, USB drops/errors or security failures. Source counters
+showed zero new overflows, discards or link losses during sustained acceptance.
+Both software restarts retained credentials and automatically rejoined.
+
+The final source/package audit, retained failures and remaining limits are in
+[radio security evidence](radio-security.md) and [numeric results](radio-security-results.json).
+The earlier unencrypted results above remain historical evidence. These are
+batched vendor-HID samples, not an integrated ZMK radio keyboard or a 125 us
+scan-to-host result. A used SWD updates because its recovery USB drive did not
+enumerate in this session. Physical power-loss/replug, Windows and host reboot
+remain unverified.

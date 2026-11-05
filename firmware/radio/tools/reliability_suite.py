@@ -43,6 +43,8 @@ def main():
     p.add_argument("--output-dir", type=Path, required=True)
     p.add_argument("--seconds", type=float, default=10)
     p.add_argument("--faults", action="store_true")
+    p.add_argument("--security-faults", action="store_true", help="Bounded ciphertext, replay and plaintext rejection tests")
+    p.add_argument("--old-session", action="store_true", help="Also inject a saved record after the peer's earlier restart")
     p.add_argument("--restart-rx", action="store_true")
     p.add_argument("--serial")
     p.add_argument("--shared", action="store_true", help="Separate shared-open controller while reader keeps draining")
@@ -59,13 +61,15 @@ def main():
         serial_args += ["--shared"]
     results = []
     controller = None
+    controller_report_size = 208
 
     def command(name, value=None):
         if controller is not None:
             from control import encode
             value = 1 if name in ("restart", "bootloader") and value is None else value
-            sent = controller.send_feature_report(b"\0" + encode(name, value))
-            if sent not in (208, 209):
+            payload = encode(name, value, controller_report_size)
+            sent = controller.send_feature_report(b"\0" + payload)
+            if sent not in (len(payload), len(payload)+1):
                 raise RuntimeError("Short persistent-controller transfer")
             return
         args = [sys.executable, str(tool_dir / "control.py"), name]
@@ -108,11 +112,19 @@ def main():
             "same_sender_session": d["session_changes"] == 0 and before["link_remote_epoch"] == after["link_remote_epoch"],
             "same_receiver_session": before["link_local_epoch"] == after["link_local_epoch"],
             "no_usb_drops": c["usb_dropped"] == 0,
+            "no_usb_errors": c["usb_errors"] == 0,
+            "no_source_queue_overflow": c["link_queue_overflow"] == 0,
             "no_discarded": c["link_discarded"] == 0,
             "no_unrecovered_rf_gaps": c["radio_missing"] == 0,
         }
-        if fault in ("drop-data", "drop-ack"):
+        if before.get("security_dtls"):
+            checks["authenticated"] = before["security_state"] == after["security_state"] == 2
+            checks["same_secure_session"] = before["security_sessions"] == after["security_sessions"]
+            checks["no_security_failures"] = c["security_failures"] == 0
+        if fault in ("drop-data", "drop-ack", "tamper-wire", "replay-wire", "replay-old-session", "inject-plaintext"):
             key = "link_injected_data" if fault == "drop-data" else "link_injected_ack"
+            if fault not in ("drop-data", "drop-ack"):
+                key = "link_injected_data"
             checks["injection_consumed"] = c[key] == value
         if fault:
             checks["injection_submitted"] = a.shared or d.get("injection", {}).get("submitted") is True
@@ -131,10 +143,13 @@ def main():
         if a.shared:
             controller = open_receiver(a.serial, True)
             initial = telemetry.read(controller)
+            controller_report_size = initial.get("control_report_size", 208)
         else:
             initial = status(a.serial)
         if not initial["link_state"] or not initial["link_remote_epoch"]:
             p.error("The two-board link is not established")
+        if (a.security_faults or a.old_session) and not initial.get("security_dtls"):
+            p.error("Security injections require the secure receiver")
         capture("baseline")
         if not results[-1]["passed"]:
             raise SystemExit("Baseline failed; refusing to interpret fault tests as reliability evidence")
@@ -148,6 +163,12 @@ def main():
             channels = [s["frequency_mhz"], 2444, 2474]
             target = (channels.index(s["link_channel"]) + 1) % len(channels)
             capture("channel-reacquisition", "channel", target)
+        if a.security_faults:
+            for kind in ("tamper-wire", "replay-wire", "inject-plaintext"):
+                for count in (1, 8, 64):
+                    capture(f"{kind}-{count}", kind, count)
+        if a.old_session:
+            capture("replay-old-session", "replay-old-session", 8)
         if a.restart_rx:
             before = telemetry.read(controller) if controller is not None else status(a.serial)
             start = time.monotonic()
@@ -164,6 +185,16 @@ def main():
                     if before.get("link_idle_detection") and not after.get("link_idle_detection"):
                         continue
                     if before.get("link_session_purge_safe") and not after.get("link_session_purge_safe"):
+                        continue
+                    if before.get("security_dtls") and not after.get("security_dtls"):
+                        continue
+                    if before.get("security_window_packets") != after.get("security_window_packets"):
+                        continue
+                    if before.get("security_async_receiver") and not after.get("security_async_receiver"):
+                        continue
+                    if before.get("security_wire_channel_hold") and not after.get("security_wire_channel_hold"):
+                        continue
+                    if before.get("security_provision_ack") and not after.get("security_provision_ack"):
                         continue
                     if (after["link_local_epoch"] != before["link_local_epoch"] and after["link_state"] and
                             after["link_remote_epoch"] != before["link_remote_epoch"] and after["radio_fresh"]):

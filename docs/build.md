@@ -35,3 +35,10 @@ rebuilding MCUboot. An application UF2 cannot repair an older installed
 bootloader. See `docs/testing.md` for the reset regression and hardware results.
 
 Builds were verified in the existing pinned development workspace. The fresh-source setup script is syntax-checked; an independent clean-machine bootstrap remains to be verified. It deliberately refuses to overwrite an already patched/dirty upstream checkout.
+
+For the opt-in authenticated two-board diagnostic transport, use the separate
+`secure` build/package variants in [radio security](radio-security.md). The pinned
+manifest already includes Mbed TLS and TF-PSA-Crypto; no dependency upgrade is
+required. Pair credentials are generated locally and provisioned over trusted
+wires, separately from signing keys and firmware builds. The default radio build
+remains the unencrypted legacy diagnostic.
