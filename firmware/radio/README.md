@@ -263,6 +263,23 @@ each gap. Changing channel has not established loss-free operation. Read the
 receiver's RF/USB counters before attributing the remaining loss. Capture
 duration is limited to 60 seconds because reports are buffered in memory.
 
+A subsequent approximately 20-second receiver-counter window had zero new RF
+missing sequences, CRC errors, malformed frames or repeats, but 19 forwarding
+drops. The overlapping host capture delivered 159,986 fresh reports at
+7,999.3/s with 20 gaps. These windows are not exactly aligned, and live SWD
+counters are not atomic. A separate 100-sample observation found the 16-slot
+queue holding 11–14 frames and accumulating nine more drops over approximately
+11 seconds. Sustained forwarding needs clock-drift/scheduling management;
+increasing buffer capacity alone would not guarantee loss-free operation.
+
+The attempted receiver-reset experiment exposed stale MCUboot scratch metadata,
+which selected older firmware despite an earlier observed confirmation flag.
+See the RRAM scratch regression in `docs/testing.md`; older installed bootloaders
+need the documented patch and a backed-up SWD update. Board B's patched
+bootloader subsequently installed and confirmed RX 0.3.0+4 and retained it
+through two resets. RF keyboard integration and forwarding-loss repair remain
+unfinished.
+
 1. Preserve the original board's working signed ZMK package; identify and back
    up the second board before writes. Install the slot-linked signed diagnostics
    without changing the tested bootloader/settings layout.

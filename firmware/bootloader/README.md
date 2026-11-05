@@ -7,6 +7,17 @@ This directory contains two different targets:
 
 See the root `docs/testing.md` for current hardware results. A build or a mounted drive alone does not prove firmware installation or recovery safety.
 
+The pinned MCUboot requires `firmware/patches/mcuboot-rram-scratch-cleanup.patch`.
+Its scratch-swap path used erase-only helpers to discard temporary metadata;
+those helpers do nothing on erase-free RRAM. A short diagnostic update left
+valid scratch magic behind, and a later reset selected stale scratch status
+even though the application had reported successful confirmation. The patch
+uses the existing scramble helper for scratch initialization and temporary
+trailer cleanup so RRAM bytes are actually overwritten. Apply it when preparing
+the pinned sources; the setup script includes it. Existing installed bootloaders
+need a separately backed-up SWD update, not an application UF2 update. Consult
+the test report for which boards have received the fix.
+
 ## Layout
 
 | Range (end exclusive) | Purpose |

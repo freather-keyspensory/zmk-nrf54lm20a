@@ -41,10 +41,39 @@ Actual hardware: Minew MX54BE13/ME54BS13 nRF54LM20A. Host: Apple Silicon macOS. 
 | Second board receiver installation | Passed: complete 211,936-byte MCUboot + signed RX 0.3.0+2 factory image read back identical; receiver booted, heartbeat advanced, USB serial matched backed-up chip ID; High Speed 480 Mbps and 125 us HID interval verified. |
 | Second board receiver USB load | Passed: 16,000 synthetic reports, 7,999.8 device completions/s and 7,999.6 host reports/s; no sequence gaps, duplicates, malformed reports, or recorded device errors/drops. This test bypassed RF. |
 | Two-board 2408 MHz configuration | RX 0.3.0+3 installed through UF2, signed-image readback matched and trial confirmed. TX 0.3.0+2 installed through guarded SWD; all 177,568 programmed bytes matched, unchanged bootloader retained. Four captures: 7,914.1–7,999.4 fresh reports/s, with 1–860 gaps. The 30-second window after builds finished delivered 239,733 fresh reports at 7,991.1/s with 270 gaps. No malformed or duplicate/backward reports. Further loss localization pending. |
+| 2408 MHz RF versus USB loss localization | Over an approximately 20-second receiver-counter window: zero new RF missing sequences, CRC errors, malformed frames or repeats; 19 new forwarding drops and zero USB submission errors. The overlapping host capture delivered 159,986 fresh reports at 7,999.3/s with 20 gaps. Windows were not exactly aligned and SWD counter reads are not atomic. |
+| Receiver forwarding queue occupancy | In 100 live samples over approximately 11 seconds, 11–14 of 16 slots were occupied and nine additional reports were dropped. Clock drift and scheduling pressure remain to be distinguished; larger buffers alone cannot guarantee sustained loss-free operation. |
 
 Host checks include full UF2 reconstruction of the signed image, bounds/alignment checks, and imgtool rejection of a tampered payload. Hardware rejection of the tampered signed file was also observed; the previously confirmed application remained bootable.
 
 A software reset is not a physical power-cycle test. The initial confirmed boot and successful update do not establish power-loss safety at every swap stage. Bootloader development uses a local signing key without OTP/UICR provisioning. The USB VID/PID and UF2 family ID remain experimental.
+
+## RRAM scratch cleanup regression
+
+A later reset of Board B selected stale scratch status and returned from RX
+0.3.0+3 at 2408 MHz to RX 0.3.0+2 at 2480 MHz, despite a previously observed
+confirmation flag. Complete readback identified the older signed image.
+The pinned scratch-swap code used `boot_erase_region()` for scratch setup and
+temporary trailer cleanup. That helper intentionally does nothing on erase-free
+RRAM, leaving valid scratch magic. The boot log explicitly selected scratch as
+its status source. Earlier successful update/confirmation tests did not cover
+this later-reset failure and do not establish that old installed bootloaders
+are free from this bug.
+
+`firmware/patches/mcuboot-rram-scratch-cleanup.patch` changes those two operations
+to the existing scramble helper. The patched bootloader builds, UF2 host tests
+pass, and the patch applies to the pinned MCUboot revision. Board B received it
+through backed-up SWD programming with complete 128 KiB readback verification;
+its application and settings were retained. Scratch magic was then observed
+cleared. A new signed RX 0.3.0+4 was installed through UF2 and confirmed, with
+complete signed-image readback matching. Two subsequent resets retained RX4;
+both boot logs reported `Boot source: none` and `Swap type: none`, with confirmed
+primary and blank scratch metadata. An unconfirmed RX 0.3.0+5 trial was then
+reset at heartbeat 1, before its five-heartbeat confirmation gate; MCUboot
+reported `Swap type: revert`. Complete readback of the returned image matched
+signed RX4, with confirmed primary and blank scratch metadata. One further
+reset again retained RX4 at 2408 MHz with blank scratch. Board A still has the older bootloader until separately
+updated through SWD. Physical power-loss testing remains outstanding.
 
 Raw device backups and desktop captures are deliberately not published because they can contain personal information and Bluetooth bond material. Report new results with reproducible steps and sanitized excerpts.
 

@@ -28,4 +28,10 @@ Run host checks with `bash firmware/bootloader/tests/run.sh`. Check a generated 
 
 Do not install a new bootloader by copying its binary to the drive. First installation requires a separate, validated SWD procedure with a full backup. Do not mass erase to resolve a build or connection problem.
 
+The MCUboot scratch cleanup patch is required for this RRAM target and is
+applied by `setup-port.sh`. When maintaining an existing pinned workspace,
+review and apply `firmware/patches/mcuboot-rram-scratch-cleanup.patch` before
+rebuilding MCUboot. An application UF2 cannot repair an older installed
+bootloader. See `docs/testing.md` for the reset regression and hardware results.
+
 Builds were verified in the existing pinned development workspace. The fresh-source setup script is syntax-checked; an independent clean-machine bootstrap remains to be verified. It deliberately refuses to overwrite an already patched/dirty upstream checkout.
