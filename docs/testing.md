@@ -72,8 +72,27 @@ primary and blank scratch metadata. An unconfirmed RX 0.3.0+5 trial was then
 reset at heartbeat 1, before its five-heartbeat confirmation gate; MCUboot
 reported `Swap type: revert`. Complete readback of the returned image matched
 signed RX4, with confirmed primary and blank scratch metadata. One further
-reset again retained RX4 at 2408 MHz with blank scratch. Board A still has the older bootloader until separately
-updated through SWD. Physical power-loss testing remains outstanding.
+reset again retained RX4 at 2408 MHz with blank scratch.
+
+Board A subsequently received the same patched bootloader through guarded SWD.
+Its original bootloader matched the saved package before replacement, and all
+128 KiB of the replacement matched on readback. Its signed TX 0.3.0+2 image
+matched complete readback after programming, and all 36 KiB of settings were
+byte-identical to the snapshot taken before the update. Both the initial restart
+and a further software reset booted TX2 at 2408 MHz. The second boot reported
+`Boot source: none` and `Swap type: none`; scratch remained blank and the primary
+confirmation flag stayed set. Final audit found an advancing heartbeat, idle
+recovery request and RRAM write enable off. Physical power-loss testing remains
+outstanding.
+
+The transmitter's volatile sequence counter was deliberately resumed through
+SWD after each maintenance reset, using the symbol from its exact ELF, so the
+still-powered receiver could accept new diagnostic frames. This is a test
+workaround, not implemented session/reconnect negotiation. Maintenance gaps
+were excluded by starting a new host capture afterward. That final 20-second
+capture delivered 159,985 fresh reports at 7,999.2/s, with eight sequence gaps
+and no malformed or duplicate/backward reports. Loss-free forwarding remains
+unverified.
 
 Raw device backups and desktop captures are deliberately not published because they can contain personal information and Bluetooth bond material. Report new results with reproducible steps and sanitized excerpts.
 
@@ -99,6 +118,15 @@ The board is left running signed ZMK **0.1.1+1** through MCUboot. The entire ins
 
 These hashes identify local development builds; new signing keys or rebuilt dependencies will produce different artifacts. Private keys and full memory images are not published.
 
-## Current USB HID state
+## Verified ZMK USB HID baseline (before radio tests)
 
-The board is running signed **0.2.0+1**, with USB preferred and the High Speed HID endpoint configured for 125 us polling. See [USB HID report](usb-hid.md) for descriptor, throughput, switching and reboot evidence. Physical replug was deferred by the owner. No Windows or host-reboot result is claimed.
+Before the radio diagnostics, Board A ran signed ZMK **0.2.0+1**, with USB preferred and the High Speed HID endpoint configured for 125 us polling. That signed package is preserved locally for restoration. See [USB HID report](usb-hid.md) for descriptor, throughput, switching and reboot evidence. Physical replug was deferred by the owner. No Windows or host-reboot result is claimed.
+
+## Current two-board test state
+
+Both boards have the patched MCUboot bootloader. Board A runs TX **0.3.0+2**;
+Board B runs RX **0.3.0+4**, both at 2408 MHz. These are vendor-HID timing
+diagnostics, not the ZMK keyboard application. The receiver forwards numbered
+test frames and does not inject keyboard input. Forwarding-loss handling,
+authenticated pairing/encryption, automatic session recovery and ZMK report
+integration remain unfinished.

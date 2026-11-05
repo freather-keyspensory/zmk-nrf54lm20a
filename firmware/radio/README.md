@@ -277,8 +277,20 @@ which selected older firmware despite an earlier observed confirmation flag.
 See the RRAM scratch regression in `docs/testing.md`; older installed bootloaders
 need the documented patch and a backed-up SWD update. Board B's patched
 bootloader subsequently installed and confirmed RX 0.3.0+4 and retained it
-through two resets. RF keyboard integration and forwarding-loss repair remain
-unfinished.
+through two resets; an unconfirmed RX5 trial also reverted to byte-identical
+confirmed RX4, which survived a further reset.
+
+Board A then received the same patched bootloader. Its 128 KiB bootloader
+readback matched, its complete signed TX 0.3.0+2 image was unchanged, and all
+36 KiB of settings matched the pre-update snapshot. TX2 booted at 2408 MHz
+after the initial restart and another software reset, with confirmed primary
+and blank scratch metadata. To keep the still-powered receiver accepting test
+frames, the transmitter sequence counter was resumed through SWD after each
+reset. This manual diagnostic action is not session negotiation. A new host
+window started after maintenance delivered 159,985 fresh reports over 20 seconds
+(7,999.2/s), with eight gaps and zero malformed or duplicate/backward reports.
+Both boards now have the scratch fix. RF keyboard integration and
+forwarding-loss repair remain unfinished.
 
 1. Preserve the original board's working signed ZMK package; identify and back
    up the second board before writes. Install the slot-linked signed diagnostics
