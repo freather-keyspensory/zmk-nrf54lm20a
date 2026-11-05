@@ -8,6 +8,7 @@ import argparse
 import gc
 import json
 import time
+import telemetry
 
 
 def valid(data):
@@ -21,6 +22,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seconds", type=float, default=10)
     parser.add_argument("--serial", help="Required if several diagnostic receivers are present")
+    parser.add_argument("--stats", action="store_true", help="Read receiver RF/USB counters before and after (requires telemetry firmware)")
     args = parser.parse_args()
     if not 0 < args.seconds <= 60:
         parser.error("--seconds must be between 0 and 60 (capture buffers reports in memory)")
@@ -32,22 +34,29 @@ def main():
         parser.error(f"Expected one matching diagnostic receiver, found {len(devices)}")
     dev = hid.device()
     dev.open_path(devices[0]["path"])
-    end = time.perf_counter() + args.seconds
-    started = time.perf_counter_ns()
     first = last = previous = first_sequence = None
     received = []
     count = fresh = missing = duplicates = malformed = 0
     gc_was_enabled = gc.isenabled()
-    gc.disable()
+    before = after = None
     try:
+        if args.stats:
+            before = telemetry.read(dev)
+        end = time.perf_counter() + args.seconds
+        started = time.perf_counter_ns()
+        gc.disable()
         while time.perf_counter() < end:
             data = dev.read(32, 100)
             now = time.perf_counter_ns()
             if not data:
                 continue
             received.append((now, bytes(data)))
-    finally:
         stopped = time.perf_counter_ns()
+        if gc_was_enabled:
+            gc.enable()
+        if args.stats:
+            after = telemetry.read(dev)
+    finally:
         dev.close()
         if gc_was_enabled:
             gc.enable()
@@ -71,14 +80,20 @@ def main():
             duplicates += 1
     observed = (stopped - started) / 1e9
     elapsed = (last - first) / 1e9 if first is not None and last > first else 0
-    print(json.dumps(dict(reports=count, fresh=fresh, missing=missing,
+    result = dict(reports=count, fresh=fresh, missing=missing,
                          duplicates_or_backward=duplicates, malformed=malformed,
                          first_sequence=first_sequence, last_sequence=previous,
                          observation_seconds=observed,
                          fresh_reports_per_second=fresh / observed,
                          active_span_reports_per_second=(fresh - 1) / elapsed if elapsed else None,
                          host_capture="buffer first with cyclic GC paused; validate after capture",
-                         measurement="host delivery; batching may affect timing"), indent=2))
+                         measurement="host delivery; batching may affect timing")
+    if args.stats:
+        result["receiver_before"] = before
+        result["receiver_after"] = after
+        result["receiver_delta"] = telemetry.difference(before, after)
+        result["receiver_window_note"] = "Feature snapshots bracket capture; their window is slightly longer than host observation"
+    print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":

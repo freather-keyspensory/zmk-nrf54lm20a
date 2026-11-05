@@ -7,3 +7,4 @@ trap 'rm -f "$test_bin"' EXIT
   "$root/frame_test.c" -o "$test_bin"
 "$test_bin"
 echo 'Radio diagnostic codec tests passed'
+python3 "$root/test_telemetry.py"

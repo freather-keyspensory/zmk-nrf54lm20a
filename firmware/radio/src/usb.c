@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: MIT */
 #include <zephyr/kernel.h>
+#include <zephyr/irq.h>
 #include <zephyr/sys/atomic.h>
+#include <zephyr/sys/byteorder.h>
 #include <zephyr/usb/usbd.h>
 #include <zephyr/usb/class/usbd_hid.h>
 #include <sample_usbd.h>
@@ -11,7 +13,9 @@
 static const uint8_t descriptor[] = {
  0x06, 0x00, 0xff, 0x09, 0x01, 0xa1, 0x01,
  0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, FRAME_SIZE,
- 0x09, 0x01, 0x81, 0x02, 0xc0,
+ 0x09, 0x01, 0x81, 0x02,
+ /* Read-only 96-byte telemetry feature; no output/control commands. */
+ 0x95, 96, 0x09, 0x02, 0xb1, 0x02, 0xc0,
 };
 static const struct device *const hid = DEVICE_DT_GET(DT_NODELABEL(radio_hid));
 K_MSGQ_DEFINE(frames, FRAME_SIZE, 16, 4);
@@ -26,11 +30,22 @@ static uint64_t bench_first_cycle;
 #define BENCH_REPORTS 16000
 volatile uint32_t radio_usb_submitted, radio_usb_completed, radio_usb_dropped;
 volatile uint32_t radio_usb_errors;
+static volatile uint32_t drop_not_ready, drop_queue_full, drop_wait_timeout;
+static volatile uint32_t drop_no_buffer, drop_submit_failed, queue_high_water;
+extern volatile uint32_t radio_completed, radio_fresh, radio_missing, radio_duplicate;
+extern volatile uint32_t radio_bad_crc, radio_bad_frame;
 /* Called only for fresh validated frames, from RADIO ISR. Never blocks. */
 void radio_usb_enqueue(const uint8_t *frame)
 {
  if (atomic_get(&radio_usb_bench_state) == 1) return;
- if (!atomic_get(&ready) || k_msgq_put(&frames, frame, K_NO_WAIT)) radio_usb_dropped++;
+ if (!atomic_get(&ready)) {
+  drop_not_ready++; radio_usb_dropped++; return;
+ }
+ if (k_msgq_put(&frames, frame, K_NO_WAIT)) {
+  drop_queue_full++; radio_usb_dropped++; return;
+ }
+ uint32_t queued = k_msgq_num_used_get(&frames);
+ if (queued > queue_high_water) queue_high_water = queued;
 }
 static void iface_ready(const struct device *dev, bool value)
 { ARG_UNUSED(dev); atomic_set(&ready, value); }
@@ -53,9 +68,40 @@ static void done(const struct device *dev, const uint8_t *report)
  }
 }
 static int get_size(const struct device *dev, uint8_t type, uint8_t id)
-{ ARG_UNUSED(dev); return type == HID_REPORT_TYPE_INPUT && id == 0 ? FRAME_SIZE : -ENOTSUP; }
+{
+ ARG_UNUSED(dev);
+ if (id != 0) return -ENOTSUP;
+ if (type == HID_REPORT_TYPE_INPUT) return FRAME_SIZE;
+ return type == HID_REPORT_TYPE_FEATURE ? 96 : -ENOTSUP;
+}
 static int get_report(const struct device *dev, uint8_t type, uint8_t id, uint16_t len, uint8_t *buf)
-{ ARG_UNUSED(dev); ARG_UNUSED(type); ARG_UNUSED(id); ARG_UNUSED(len); ARG_UNUSED(buf); return -ENOTSUP; }
+{
+ ARG_UNUSED(dev);
+ if (type != HID_REPORT_TYPE_FEATURE || id != 0) return -ENOTSUP;
+ uint32_t words[24];
+ words[0] = 0x5453384d; /* M8ST, little endian */
+ words[1] = 1;
+ words[2] = k_uptime_get_32();
+ words[3] = CONFIG_MINEW_RADIO_FREQUENCY_MHZ;
+ /* Snapshot only loads while locked; serialize outside the RF critical path. */
+ unsigned int key = irq_lock();
+ words[4] = radio_completed; words[5] = radio_fresh;
+ words[6] = radio_missing; words[7] = radio_duplicate;
+ words[8] = radio_bad_crc; words[9] = radio_bad_frame;
+ words[10] = radio_usb_submitted; words[11] = radio_usb_completed;
+ words[12] = radio_usb_dropped; words[13] = radio_usb_errors;
+ words[14] = drop_not_ready; words[15] = drop_queue_full;
+ words[16] = drop_wait_timeout; words[17] = drop_no_buffer;
+ words[18] = drop_submit_failed; words[19] = k_msgq_num_used_get(&frames);
+ words[20] = queue_high_water; words[21] = atomic_get(&used);
+ words[22] = atomic_get(&ready); words[23] = 0;
+ irq_unlock(key);
+ uint8_t report[96];
+ for (size_t i = 0; i < ARRAY_SIZE(words); i++) sys_put_le32(words[i], report + i * 4);
+ size_t size = MIN(len, sizeof(report));
+ memcpy(buf, report, size);
+ return size;
+}
 static const struct hid_device_ops ops = {
  .iface_ready = iface_ready, .input_report_done = done,
  .get_report_size = get_size, .get_report = get_report,
@@ -83,6 +129,7 @@ static void forward(void *a, void *b, void *c)
  for (;;) {
   k_msgq_get(&frames, frame, K_FOREVER);
   if (k_sem_take(&available, K_MSEC(2))) {
+   drop_wait_timeout++;
    radio_usb_dropped++;
    if (atomic_get(&radio_usb_bench_state) == 1) radio_usb_bench_errors++;
    continue;
@@ -93,6 +140,7 @@ static void forward(void *a, void *b, void *c)
     memcpy(buffers + i * 64, frame, FRAME_SIZE);
     int err = atomic_get(&ready) ? hid_device_submit_report(hid, FRAME_SIZE, buffers + i * 64) : -ENODEV;
     if (err) {
+     drop_submit_failed++; radio_usb_dropped++;
      radio_usb_errors++;
      if (atomic_get(&radio_usb_bench_state) == 1) radio_usb_bench_errors++;
      atomic_clear_bit(&used, i); k_sem_give(&available);
@@ -101,6 +149,7 @@ static void forward(void *a, void *b, void *c)
    }
   }
   if (!submitted) {
+   drop_no_buffer++; radio_usb_dropped++;
    radio_usb_errors++;
    if (atomic_get(&radio_usb_bench_state) == 1) radio_usb_bench_errors++;
    k_sem_give(&available);

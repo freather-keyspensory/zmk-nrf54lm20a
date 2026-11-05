@@ -110,6 +110,26 @@ the result; this is not scan-to-host latency. Compare receiver counters to
 distinguish RF errors from later losses.
 A receiver USB accessory permission prompt may require Allow on macOS.
 
+The telemetry receiver build adds a read-only, unnumbered 96-byte HID feature
+report (`M8ST`, version 1). It snapshots RF counters, USB counters, individual
+drop reasons, queue occupancy/high-water mark, buffer ownership and readiness.
+It accepts no output commands. Use `capture.py --stats --seconds 30` with this
+build; older receiver firmware does not support the feature and will fail the
+request. The two feature requests bracket the host capture, so their counter
+window is slightly longer than the host observation. Compare bounded deltas,
+not cumulative startup drops. Synthetic USB benchmarks deliberately suppress
+RF forwarding and must not be interpreted as loss-free RF tests.
+
+Drop reasons separate USB-not-ready, queue-full, buffer-wait timeout, no free
+buffer, and submission failure. Submission/no-buffer failures now also increment
+the total drop counter; older builds counted those only as errors. The queue
+capacity, two-millisecond wait and 125 us endpoint are unchanged in this
+measurement build. Do not interpret instrumentation as a forwarding repair.
+
+RX 0.3.0+6 implements this telemetry. Both receiver layouts build, malformed
+telemetry/wrap tests pass, and its signed package and UF2 reconstruction pass.
+Installation and hardware telemetry validation are pending the probe move to B.
+
 ## Single-board USB smoke test — 2026-11-05
 
 The original board was updated through its existing UF2 bootloader to signed RX
