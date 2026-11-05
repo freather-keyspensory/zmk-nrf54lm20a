@@ -49,6 +49,34 @@ PY
 
 Do not distribute full backups: they contain Bluetooth bond material. The factory tool does not alter UICR/OTP, but changing the boot layout is still a substantial device change. Preserve the backup and working SWD recovery path.
 
+## Updating a verified existing prefix over SWD
+
+The persistent DLL flasher also accepts `--previous-prefix` and
+`--previous-proof` together when an earlier full-device backup exists but the
+current image has since changed through verified updates. The prefix must be
+an actual SWD read covering the entire new write range. Its proof contains
+`identity`, `device_id_private` (raw FICR bytes as lowercase hex), `bytes`,
+`sha256`, and `readback_sha256`. Both hashes must match that captured prefix.
+Never invent a physical-read proof from a desired image file.
+
+The flasher checks the original full backup, verifies the prefix proof and
+unique target ID, halts the CPU, and independently compares the current target
+bytes with the prefix before writing. Resume plans include the predecessor
+hash. This remains an address-zero prefix writer, not an application-slot
+relocator. To update an MCUboot application using a combined factory prefix,
+verify that its complete bootloader region is byte-identical to the installed
+bootloader, that changes are confined to the primary application slot, and
+that the new application is signed/linked for the installed layout. Identical
+blocks are skipped; every block and the complete result are read back.
+
+An address-zero prefix capture can end partway through the old application;
+it is a backup of the write range, not necessarily a complete bootable image.
+Preserve the full initial backup and complete signed application packages.
+This direct SWD method retains existing swap/confirmation metadata; it does
+not automatically create an unconfirmed MCUboot trial. The first Board A
+transmitter installation used this path because its USB recovery drive was
+not enumerating on the Mac. Its bootloader and settings were retained.
+
 ## Backup when the main debug port is protected
 
 Some factory-programmed boards have main-core APPROTECT enabled in UICR while

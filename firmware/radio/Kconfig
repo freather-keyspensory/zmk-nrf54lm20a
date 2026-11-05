@@ -1,3 +1,10 @@
 mainmenu "Minew 8 kHz radio diagnostic"
+config MINEW_RADIO_FREQUENCY_MHZ
+ int "Fixed diagnostic radio frequency in MHz"
+ range 2402 2480
+ default 2408
+ help
+   Both transmitter and receiver must use the same frequency.
+   This is a fixed-channel diagnostic, not adaptive channel hopping.
 source "Kconfig.zephyr"
 rsource "../upstream-zephyr/samples/subsys/usb/common/Kconfig.sample_usbd"

@@ -81,7 +81,7 @@ int main(void)
  int err = nrf_clock_control_request_sync(DEVICE_DT_GET(DT_NODELABEL(xo)), NULL, K_SECONDS(1));
  if (err) { printk("HFXO error %d\n", err); return err; }
  nrf_radio_mode_set(RADIO, NRF_RADIO_MODE_NRF_4MBIT_BT_0_6);
- nrf_radio_frequency_set(RADIO, 2480);
+ nrf_radio_frequency_set(RADIO, CONFIG_MINEW_RADIO_FREQUENCY_MHZ);
  nrf_radio_txpower_set(RADIO, NRF_RADIO_TXPOWER_0DBM);
  nrf_radio_packet_conf_t cfg = {
   .lflen = 0, .s0len = 0, .s1len = 0,
@@ -125,7 +125,8 @@ int main(void)
  nrf_radio_task_trigger(RADIO, NRF_RADIO_TASK_RXEN);
 #endif
  radio_started = 1;
- printk("MINEW 4 Mbps %s diagnostic; 125 us target, no BLE/keys/authentication\n", RADIO_TX ? "TX" : "RX");
+ printk("MINEW 4 Mbps %s diagnostic at %u MHz; 125 us target, no BLE/keys/authentication\n",
+        RADIO_TX ? "TX" : "RX", CONFIG_MINEW_RADIO_FREQUENCY_MHZ);
  for (;;) {
   k_sleep(K_SECONDS(1)); radio_heartbeat++;
 #if IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT)

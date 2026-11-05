@@ -11,7 +11,7 @@ This is a pinned compatibility port of **ZMK v0.3.0 to a newer Zephyr**, not a c
 - `firmware/port/`: Minew board, one-key test configuration, legacy kscan compatibility, and SWD tools.
 - `firmware/bootloader/`: UF2 virtual drive, parser, signed MCUboot integration, packaging, and tests.
 - `firmware/patches/`: minimal patches against exact upstream revisions.
-- `firmware/radio/`: experimental two-board 8 kHz proprietary-radio diagnostics; builds and receiver USB smoke test passed, wireless testing pending.
+- `firmware/radio/`: experimental two-board proprietary-radio diagnostics; hardware delivery near 8 kHz measured, with sequence gaps. Not yet a ZMK wireless keyboard transport.
 - `hardware/`: firmware-facing integration notes. Separate local PCB experiments are not included in this firmware baseline.
 - `docs/`: public build/test documentation.
 

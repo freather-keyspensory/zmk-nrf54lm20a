@@ -7,6 +7,8 @@ from swd_dll import DllSWD
 p=argparse.ArgumentParser()
 p.add_argument('image',type=Path);p.add_argument('--backup',type=Path,required=True)
 p.add_argument('--logs',type=Path,required=True);p.add_argument('--resume-from',type=Path)
+p.add_argument('--previous-prefix',type=Path)
+p.add_argument('--previous-proof',type=Path)
 a=p.parse_args()
 image=validate_image(a.image.read_bytes())
 original=(a.backup/'rram.bin').read_bytes();proof=json.loads((a.backup/'complete.json').read_text())
@@ -15,7 +17,20 @@ if len(original)!=0x1fd000 or hashlib.sha256(original).hexdigest()!=proof['sha25
 if a.logs.exists():raise SystemExit('Use a new log directory')
 with DllSWD(a.logs) as s:
  identity=s.identify()
+ predecessor=None
+ if bool(a.previous_prefix)!=bool(a.previous_proof):
+  raise SystemExit('Previous prefix and its proof must be supplied together')
+ if a.previous_prefix:
+  previous=validate_image(a.previous_prefix.read_bytes())
+  verified=json.loads(a.previous_proof.read_text())
+  predecessor=hashlib.sha256(previous).hexdigest()
+  if (verified['identity']!=identity or verified['sha256']!=predecessor or
+      verified['readback_sha256']!=predecessor or verified['bytes']!=len(previous) or
+      len(previous)<len(image) or s.read(0xffc304,8).hex()!=verified['device_id_private']):
+   raise SystemExit('Verified current prefix/target does not match predecessor proof')
+  original=previous+original[len(previous):]
  plan={'identity':identity,'image_sha256':hashlib.sha256(image).hexdigest(),'backup_sha256':proof['sha256']}
+ if predecessor:plan['predecessor_sha256']=predecessor
  if a.resume_from and json.loads(a.resume_from.read_text())!=plan:raise SystemExit('Resume plan mismatch')
  (a.logs/'program-plan.json').write_text(json.dumps(plan,indent=2))
  controller=[s.read32(x) for x in [0x5004e400,0x5004e404,0x5004e500,0x5004e10c]]

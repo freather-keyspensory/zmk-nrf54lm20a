@@ -9,7 +9,9 @@ UF2 reconstruction/bounds checks and tampered-payload rejection by imgtool.
 Receiver 0.3.0+1 has been installed temporarily on the original board: it boots,
 confirms its trial image and enumerates at USB High Speed (480 Mbps), with a
 125 us HID polling interval. The original ZMK 0.2.0+1 was restored afterward.
-TX has not been flashed, and two-board RF delivery remains untested.
+Both boards now run signed diagnostics. Initial two-board tests at 2480 MHz
+delivered approximately 7,934–7,995 fresh host reports/s, with sequence gaps.
+This demonstrates a working link near 8 kHz, not loss-free operation.
 
 Nordic documents [proprietary radio rates up to 4 Mbps](https://www.nordicsemi.com/Products/nRF54LM20A).
 That PHY capability is not proof of an 8 kHz keyboard. The target here is a new
@@ -53,7 +55,8 @@ bootloader, not this application's USB interface.
 ## Diagnostic protocol
 
 - Exclusive ownership of RADIO; Bluetooth is disabled. No simultaneous BLE mode.
-- Fixed 2480 MHz, proprietary 4 Mbps BT=0.6 mode, 0 dBm, five-byte address,
+- Fixed configurable frequency (`CONFIG_MINEW_RADIO_FREQUENCY_MHZ`, currently
+  2408 MHz), proprietary 4 Mbps BT=0.6 mode, 0 dBm, five-byte address,
   16-bit preamble and 24-bit hardware CRC. No ACK/retransmission/channel hopping.
 - Fixed 32-byte payload: `M8`, version 1, reserved zero, little-endian 32-bit
   sequence, then 24 deterministic pattern bytes. This is not authentication.
@@ -72,9 +75,9 @@ bootloader, not this application's USB interface.
 
 The fixed packet airtime is approximately 84 us at 4 Mbps (2-byte preamble,
 5-byte address, 32-byte payload, 3-byte CRC). This is a budget estimate, not a
-measured timing result. RX initialization and its scheduler heartbeat passed a
-single-board smoke test. RF ramp/START behavior, timer-domain routing, timing
-margin, reception and sustained USB forwarding remain to be checked on hardware.
+measured airtime result. Hardware tests demonstrated periodic transmission,
+reception and USB forwarding. Reception losses and scheduling margin still need
+characterization before using this as a keyboard transport.
 
 Sequence comparisons handle 32-bit wrap, reject repeats/backward values, and
 count forward gaps. Restart RX after restarting TX: this diagnostic has no
@@ -101,8 +104,10 @@ python firmware/radio/tools/capture.py --seconds 10
 
 The tool opens only a matching vendor HID device and fails on ambiguity.
 It reports fresh host delivery rate, gaps, repeats and malformed frames.
-Host batching affects timing; this is not scan-to-host latency. Receiver USB
-enumeration passed, but no wireless connection or throughput result is claimed.
+The tool buffers reports and validates after capture, with cyclic garbage
+collection paused during reception. Host batching and queue overflow can affect
+the result; this is not scan-to-host latency. Compare receiver counters to
+distinguish RF errors from later losses.
 A receiver USB accessory permission prompt may require Allow on macOS.
 
 ## Single-board USB smoke test — 2026-11-05
@@ -197,6 +202,66 @@ bootloader was unchanged, and all pre-existing settings bytes were preserved.
 The CPU was running with an idle test-key request at the final audit.
 
 ## Work after timing bring-up
+
+Board B was installed as the receiver on 2026-11-05. Its factory main-core
+debug was protected, but the auxiliary AHB port was open. Before any erase,
+all 2,084,864 RRAM bytes were saved and matched on a second complete read;
+4,096 UICR bytes also matched before/after. With explicit owner authorization,
+CTRL-AP recovery erased RRAM/UICR and restored main-core debug. A new halted
+baseline was verified entirely erased before factory programming.
+
+The complete 211,936-byte bootloader + signed RX 0.3.0+2 image matched on
+readback. Board B then booted the receiver, and its USB serial matched the
+backed-up FICR identity. USB negotiated High Speed with a 125 us HID endpoint.
+A synthetic burst delivered all 16,000 reports: 7,999.8 completions/s on device,
+7,999.6 reports/s at the Mac, with no gaps, duplicates, malformed frames, or
+recorded device errors/drops. Final audit showed an advancing heartbeat,
+`radio_started=1`, CPU running and both debugger request fields idle.
+
+This first factory image has unset trailer magic. MCUboot treats an initial
+preprogrammed image as confirmed; an erased image-ok flag is expected here and
+is not an unconfirmed UF2 trial. Trial-image rollback on Board B has not been
+tested. Board A was subsequently installed with TX 0.3.0+1 through guarded SWD,
+preserving its bootloader and settings; the complete programmed prefix matched
+on readback. Its USB recovery drive was not enumerating, so UF2 was not used
+for that installation.
+
+At 2480 MHz, three host windows delivered about 7,934, 7,935 and 7,995 fresh
+reports/s, with 663, 647 and 60 sequence gaps respectively. A separate roughly
+five-second receiver counter window recorded 40,138 fresh frames, 16 missing
+sequences, six bad CRCs, and zero recorded USB errors/drops. Thus some losses
+occurred on the RF path; host capture may add others. Transmitter END events
+advanced at approximately 7,999.85/s.
+
+`tools/probe_receiver.py` reads receiver counters using an exact ELF and private
+target-identity guard. Its optional RSSI sampling and temporary normal-priority
+experiment use narrowly bounded volatile writes, without reset or flash writes.
+The priority is restored in `finally`. Unsynchronized RSSI samples were
+−45 to −48 dBm. A temporary RADIO priority change did not establish an
+improvement and was restored; the default priority remains unchanged.
+
+RX 0.3.0+3 was then installed via UF2 with a 2408 MHz configuration. Its signed
+image matched complete readback, the frequency register matched 2408 MHz, and
+its trial was confirmed. Matching TX 0.3.0+2 uses the same channel. These version
+numbers identify the local test packages; contributors must sign their own.
+
+TX 0.3.0+2 was installed through guarded SWD and the complete 177,568-byte
+factory prefix matched readback. Reopening the debug session after CTRL-AP
+reset verified the running transmitter at 2408 MHz, with an advancing heartbeat
+and approximately 7,999 END events/s in a host-timed ten-second counter window.
+
+| 2408 MHz host window | Fresh reports | Fresh reports/s | Sequence gaps |
+|---|---:|---:|---:|
+| First, 10 s | 79,995 | 7,999.4 | 1 |
+| Second, 10 s; host builds active | 79,142 | 7,914.1 | 860 |
+| Third, 10 s; host builds active | 79,474 | 7,946.8 | 528 |
+| Fourth, 30 s; host builds finished | 239,733 | 7,991.1 | 270 |
+
+All four captures had zero malformed or duplicate/backward reports. Build load
+is a possible contributor to host capture loss, not a demonstrated cause of
+each gap. Changing channel has not established loss-free operation. Read the
+receiver's RF/USB counters before attributing the remaining loss. Capture
+duration is limited to 60 seconds because reports are buffered in memory.
 
 1. Preserve the original board's working signed ZMK package; identify and back
    up the second board before writes. Install the slot-linked signed diagnostics
