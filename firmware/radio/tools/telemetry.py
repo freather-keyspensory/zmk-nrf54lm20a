@@ -1,4 +1,4 @@
-"""Read-only receiver telemetry, feature report zero, wire version 1."""
+"""Read-only receiver telemetry, feature report zero, wire versions 1/2."""
 import struct
 
 FIELDS = (
@@ -10,23 +10,29 @@ FIELDS = (
     "usb_ready", "reserved",
 )
 COUNTERS = FIELDS[2:17]
+REPORT_FIELDS = ("usb_reports_submitted", "usb_reports_completed", "usb_dual_reports", "usb_report_size")
 
 
 def decode(data):
     data = bytes(data)
     # HIDAPI backends may include the unnumbered report's leading zero ID.
-    if len(data) == 97 and data[0] == 0:
+    if data[:5] == b"\0M8ST":
         data = data[1:]
-    if len(data) != 96 or data[:4] != b"M8ST":
-        raise ValueError("Expected 96-byte M8ST receiver telemetry")
-    words = struct.unpack("<24I", data)
-    if words[1] != 1 or words[-1] != 0:
+    if len(data) not in (96, 112) or data[:4] != b"M8ST":
+        raise ValueError("Expected 96/112-byte M8ST receiver telemetry")
+    words = struct.unpack("<" + "I" * (len(data) // 4), data)
+    if (words[1], len(data)) not in ((1, 96), (2, 112)) or words[23] != 0:
         raise ValueError("Unsupported receiver telemetry version/reserved field")
-    return dict(zip(FIELDS, words[2:]))
+    result = dict(zip(FIELDS, words[2:24]))
+    if words[1] == 2:
+        result.update(zip(REPORT_FIELDS, words[24:]))
+        if result["usb_report_size"] not in (32, 64):
+            raise ValueError("Unsupported input report size")
+    return result
 
 
 def read(device):
-    return decode(device.get_feature_report(0, 97))
+    return decode(device.get_feature_report(0, 113))
 
 
 def difference(before, after):
@@ -35,5 +41,10 @@ def difference(before, after):
     elapsed = (after["uptime_ms"] - before["uptime_ms"]) & 0xffffffff
     if not 0 < elapsed < 120000:
         raise ValueError("Receiver reset or invalid telemetry window")
+    keys = list(COUNTERS)
+    if before.get("usb_report_size") != after.get("usb_report_size"):
+        raise ValueError("USB report format changed during capture")
+    if "usb_report_size" in before:
+        keys += list(REPORT_FIELDS[:3])
     return dict(counter_window_ms=elapsed,
-                counters={k: (after[k] - before[k]) & 0xffffffff for k in COUNTERS})
+                counters={k: (after[k] - before[k]) & 0xffffffff for k in keys})

@@ -43,6 +43,15 @@ Actual hardware: Minew MX54BE13/ME54BS13 nRF54LM20A. Host: Apple Silicon macOS. 
 | Two-board 2408 MHz configuration | RX 0.3.0+3 installed through UF2, signed-image readback matched and trial confirmed. TX 0.3.0+2 installed through guarded SWD; all 177,568 programmed bytes matched, unchanged bootloader retained. Four captures: 7,914.1–7,999.4 fresh reports/s, with 1–860 gaps. The 30-second window after builds finished delivered 239,733 fresh reports at 7,991.1/s with 270 gaps. No malformed or duplicate/backward reports. Further loss localization pending. |
 | 2408 MHz RF versus USB loss localization | Over an approximately 20-second receiver-counter window: zero new RF missing sequences, CRC errors, malformed frames or repeats; 19 new forwarding drops and zero USB submission errors. The overlapping host capture delivered 159,986 fresh reports at 7,999.3/s with 20 gaps. Windows were not exactly aligned and SWD counter reads are not atomic. |
 | Receiver forwarding queue occupancy | In 100 live samples over approximately 11 seconds, 11–14 of 16 slots were occupied and nine additional reports were dropped. Clock drift and scheduling pressure remain to be distinguished; larger buffers alone cannot guarantee sustained loss-free operation. |
+| USB telemetry loss attribution, RX 0.3.0+6 | Installed, confirmed and signed-image readback matched. A 20-second counter window received 160,000 fresh RF frames and completed 159,982 USB frames, with 17 queue-full drops; no RF gaps/CRC errors, buffer-wait timeouts or submission errors in that window. |
+| USB catch-up format, RX 0.3.0+7 | USB High Speed retained, endpoint 0x81 maximum packet 64 bytes and bInterval=1 verified (125 us / 8 kHz). Reports contain one or two distinct 32-byte frames; padding is excluded from frame counts. No intentional wait to fill a pair. |
+| End-to-end catch-up captures | Three separate 60-second steady-state windows: 479,994 / 480,001 / 480,000 fresh frames (1,439,995 total), approximately 7,999.9–8,000.0 frames/s. Each had zero host gaps, malformed/duplicate host frames, RF missing sequences/CRC errors, USB drops or submission errors. Counter windows included 108 / 115 / 119 two-frame reports. Startup and maintenance gaps were excluded; this is not proof of loss-free startup, outage recovery or RF retransmission. |
+| Catch-up synthetic USB test | With RX deliberately paused through guarded volatile SWD tasks: all 16,000 synthetic frames arrived in 15,953 USB reports, no gaps/duplicates/corruption or device errors, 7,999.3 USB report completions/s. RX was resumed afterward; the pause is excluded from RF tests. |
+| Final RX 0.3.0+8 audit | Both receiver layouts and host protocol tests passed. Signed image confirmed and complete readback matched; software reset retained RX8 with confirmed primary, blank scratch and no swap. Final 20-second capture: 160,007 fresh frames, zero host/RF gaps, CRC errors, USB drops/errors; 42 two-frame reports in the counter window. This package corrects the RTT frame-count labels. |
+
+The [sanitized numeric RF/USB results](radio-8k-results.json) retain the failing
+32-byte baseline and all five catch-up windows, with separate host and receiver
+counter windows. USB reports and contained frames are counted separately.
 
 Host checks include full UF2 reconstruction of the signed image, bounds/alignment checks, and imgtool rejection of a tampered payload. Hardware rejection of the tampered signed file was also observed; the previously confirmed application remained bootable.
 
@@ -125,8 +134,10 @@ Before the radio diagnostics, Board A ran signed ZMK **0.2.0+1**, with USB prefe
 ## Current two-board test state
 
 Both boards have the patched MCUboot bootloader. Board A runs TX **0.3.0+2**;
-Board B runs RX **0.3.0+4**, both at 2408 MHz. These are vendor-HID timing
+Board B runs RX **0.3.0+8**, both at 2408 MHz. These are vendor-HID timing
 diagnostics, not the ZMK keyboard application. The receiver forwards numbered
-test frames and does not inject keyboard input. Forwarding-loss handling,
+test frames and does not inject keyboard input. USB now uses the catch-up format
+and has passed the zero-loss steady-state windows above. RF acknowledgment/retry,
 authenticated pairing/encryption, automatic session recovery and ZMK report
-integration remain unfinished.
+integration remain unfinished. End-to-end latency and physical keyboard scanning
+have not been measured by these tests.

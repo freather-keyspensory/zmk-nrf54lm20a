@@ -8,28 +8,34 @@
 #include <sample_usbd.h>
 #include <string.h>
 #include "frame.h"
+#define USB_REPORT_SIZE DT_PROP(DT_NODELABEL(radio_hid), in_report_size)
+BUILD_ASSERT(USB_REPORT_SIZE == 32 || USB_REPORT_SIZE == 64);
 
 /* Vendor usage page: received diagnostic bytes cannot generate key presses. */
 static const uint8_t descriptor[] = {
  0x06, 0x00, 0xff, 0x09, 0x01, 0xa1, 0x01,
- 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, FRAME_SIZE,
+ 0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, USB_REPORT_SIZE,
  0x09, 0x01, 0x81, 0x02,
- /* Read-only 96-byte telemetry feature; no output/control commands. */
- 0x95, 96, 0x09, 0x02, 0xb1, 0x02, 0xc0,
+ /* Read-only telemetry feature; no output/control commands. */
+ 0x95, 112, 0x09, 0x02, 0xb1, 0x02, 0xc0,
 };
 static const struct device *const hid = DEVICE_DT_GET(DT_NODELABEL(radio_hid));
 K_MSGQ_DEFINE(frames, FRAME_SIZE, 16, 4);
 K_SEM_DEFINE(available, 4, 4);
 UDC_STATIC_BUF_DEFINE(buffers, 4 * 64);
 static atomic_t ready, used;
+static uint8_t buffer_frames[4];
 /* Explicit SWD-triggered USB load test; synthetic frames never mean keys. */
 volatile uint32_t radio_usb_bench_request, radio_usb_bench_completed, radio_usb_bench_errors;
 volatile uint64_t radio_usb_bench_elapsed_ns;
+volatile uint32_t radio_usb_bench_reports, radio_usb_bench_first_frames;
 static atomic_t radio_usb_bench_state; /* 0 idle, 1 active, 2 done, 3 failed */
 static uint64_t bench_first_cycle;
 #define BENCH_REPORTS 16000
+/* Frame counts; a USB completion may deliver one or two frames. */
 volatile uint32_t radio_usb_submitted, radio_usb_completed, radio_usb_dropped;
 volatile uint32_t radio_usb_errors;
+static volatile uint32_t usb_reports_submitted, usb_reports_completed, usb_dual_reports;
 static volatile uint32_t drop_not_ready, drop_queue_full, drop_wait_timeout;
 static volatile uint32_t drop_no_buffer, drop_submit_failed, queue_high_water;
 extern volatile uint32_t radio_completed, radio_fresh, radio_missing, radio_duplicate;
@@ -54,11 +60,16 @@ static void done(const struct device *dev, const uint8_t *report)
  ARG_UNUSED(dev);
  ptrdiff_t offset = report - buffers;
  if (offset >= 0 && offset < sizeof(buffers) && !(offset % 64)) {
-  radio_usb_completed++; atomic_clear_bit(&used, offset / 64);
+  uint8_t count_frames = buffer_frames[offset / 64];
+  radio_usb_completed += count_frames; usb_reports_completed++;
+  atomic_clear_bit(&used, offset / 64);
   if (atomic_get(&radio_usb_bench_state) == 1) {
    uint64_t now = k_cycle_get_64();
-   uint32_t count = ++radio_usb_bench_completed;
-   if (count == 1) bench_first_cycle = now;
+   uint32_t count = radio_usb_bench_completed += count_frames;
+   radio_usb_bench_reports++;
+   if (count == count_frames) {
+    bench_first_cycle = now; radio_usb_bench_first_frames = count_frames;
+   }
    if (count == BENCH_REPORTS) {
     radio_usb_bench_elapsed_ns = k_cyc_to_ns_floor64(now - bench_first_cycle);
     atomic_set(&radio_usb_bench_state, radio_usb_bench_errors ? 3 : 2);
@@ -71,16 +82,16 @@ static int get_size(const struct device *dev, uint8_t type, uint8_t id)
 {
  ARG_UNUSED(dev);
  if (id != 0) return -ENOTSUP;
- if (type == HID_REPORT_TYPE_INPUT) return FRAME_SIZE;
- return type == HID_REPORT_TYPE_FEATURE ? 96 : -ENOTSUP;
+ if (type == HID_REPORT_TYPE_INPUT) return USB_REPORT_SIZE;
+ return type == HID_REPORT_TYPE_FEATURE ? 112 : -ENOTSUP;
 }
 static int get_report(const struct device *dev, uint8_t type, uint8_t id, uint16_t len, uint8_t *buf)
 {
  ARG_UNUSED(dev);
  if (type != HID_REPORT_TYPE_FEATURE || id != 0) return -ENOTSUP;
- uint32_t words[24];
+ uint32_t words[28];
  words[0] = 0x5453384d; /* M8ST, little endian */
- words[1] = 1;
+ words[1] = 2;
  words[2] = k_uptime_get_32();
  words[3] = CONFIG_MINEW_RADIO_FREQUENCY_MHZ;
  /* Snapshot only loads while locked; serialize outside the RF critical path. */
@@ -95,8 +106,10 @@ static int get_report(const struct device *dev, uint8_t type, uint8_t id, uint16
  words[18] = drop_submit_failed; words[19] = k_msgq_num_used_get(&frames);
  words[20] = queue_high_water; words[21] = atomic_get(&used);
  words[22] = atomic_get(&ready); words[23] = 0;
+ words[24] = usb_reports_submitted; words[25] = usb_reports_completed;
+ words[26] = usb_dual_reports; words[27] = USB_REPORT_SIZE;
  irq_unlock(key);
- uint8_t report[96];
+ uint8_t report[112];
  for (size_t i = 0; i < ARRAY_SIZE(words); i++) sys_put_le32(words[i], report + i * 4);
  size_t size = MIN(len, sizeof(report));
  memcpy(buf, report, size);
@@ -137,14 +150,23 @@ static void forward(void *a, void *b, void *c)
   bool submitted = false;
   for (int i = 0; i < 4; i++) {
    if (!atomic_test_and_set_bit(&used, i)) {
+    uint8_t count_frames = 1;
+    memset(buffers + i * 64, 0, USB_REPORT_SIZE);
     memcpy(buffers + i * 64, frame, FRAME_SIZE);
-    int err = atomic_get(&ready) ? hid_device_submit_report(hid, FRAME_SIZE, buffers + i * 64) : -ENODEV;
+    /* Never wait to fill a batch: use the spare slot only for queued data.
+     * A zero second slot means absent, not a repeated/synthetic RF sample. */
+    if (USB_REPORT_SIZE == 64 && !k_msgq_get(&frames, buffers + i * 64 + FRAME_SIZE, K_NO_WAIT)) count_frames++;
+    buffer_frames[i] = count_frames;
+    int err = atomic_get(&ready) ? hid_device_submit_report(hid, USB_REPORT_SIZE, buffers + i * 64) : -ENODEV;
     if (err) {
-     drop_submit_failed++; radio_usb_dropped++;
+     drop_submit_failed += count_frames; radio_usb_dropped += count_frames;
      radio_usb_errors++;
      if (atomic_get(&radio_usb_bench_state) == 1) radio_usb_bench_errors++;
      atomic_clear_bit(&used, i); k_sem_give(&available);
-    } else { radio_usb_submitted++; }
+    } else {
+     radio_usb_submitted += count_frames; usb_reports_submitted++;
+     if (count_frames == 2) usb_dual_reports++;
+    }
     submitted = true; break;
    }
   }
@@ -167,6 +189,7 @@ static void benchmark(void *a, void *b, void *c)
   if (radio_usb_bench_request != 1) continue;
   radio_usb_bench_request = 0;
   radio_usb_bench_completed = 0; radio_usb_bench_errors = 0;
+  radio_usb_bench_reports = 0; radio_usb_bench_first_frames = 0;
   radio_usb_bench_elapsed_ns = 0;
   if (!atomic_get(&ready) || atomic_get(&used) || k_msgq_num_used_get(&frames)) {
    radio_usb_bench_errors = 1; atomic_set(&radio_usb_bench_state, 3); continue;

@@ -13,7 +13,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "port/scripts"))
 from swd_dll import DllSWD
-from capture import valid
+from capture import valid, unpack_report
 
 
 def main():
@@ -44,7 +44,7 @@ def main():
     try:
         dev.set_nonblocking(1)
         deadline = time.monotonic() + 1
-        while dev.read(32):
+        while dev.read(64):
             if time.monotonic() > deadline:
                 p.error("Receiver is not idle; stop RF transmission before benchmarking")
         dev.set_nonblocking(0)
@@ -53,11 +53,12 @@ def main():
             swd.write32(symbols[names[0]], 1)
             count = malformed = duplicate = gaps = 0
             first_seq = last_seq = first_ns = last_ns = None
+            first_report_frames = 0
             received = []
             last_received_ns = None
             deadline = time.monotonic() + 12
             while time.monotonic() < deadline:
-                data = dev.read(32, 100)
+                data = dev.read(64, 100)
                 now = time.perf_counter_ns()
                 if not data:
                     if last_received_ns is not None and now - last_received_ns > 500_000_000:
@@ -67,15 +68,23 @@ def main():
                 # does not compete with draining HIDAPI's small native queue.
                 received.append((now, bytes(data)))
                 last_received_ns = now
-                if len(data) == 32 and int.from_bytes(bytes(data[4:8]), "little") == 15999:
+                if len(data) in (32, 64) and any(int.from_bytes(bytes(data[i+4:i+8]), "little") == 15999 for i in range(0, len(data), 32)):
                     break
-            for now, data in received:
+            frames = []
+            for now, report in received:
+                try:
+                    frames.extend((now, frame) for frame in unpack_report(report))
+                except ValueError:
+                    malformed += 1
+            for now, data in frames:
                 if not valid(data):
                     malformed += 1
                     continue
                 seq = int.from_bytes(bytes(data[4:8]), "little")
                 if first_seq is None:
                     first_seq, first_ns = seq, now
+                if now == first_ns:
+                    first_report_frames += 1
                 if last_seq is not None:
                     delta = (seq - last_seq) & 0xFFFFFFFF
                     if not 0 < delta < 0x80000000:
@@ -93,15 +102,20 @@ def main():
             completed = swd.read32(symbols[names[2]])
             errors = swd.read32(symbols[names[3]])
             ns = int.from_bytes(swd.read(symbols[names[4]], 8), "little")
+            batch = "radio_usb_bench_first_frames" in symbols
+            first_frames = swd.read32(symbols["radio_usb_bench_first_frames"]) if batch else 1
+            device_reports = swd.read32(symbols["radio_usb_bench_reports"]) if batch else completed
             elapsed = last_ns - first_ns if first_ns is not None else 0
             passed = state == 2 and completed == count == 16000 and errors == malformed == duplicate == gaps == 0 and first_seq == 0 and last_seq == 15999
             result = dict(passed=passed, device_state=state, device_completed=completed,
                           device_errors=errors, device_elapsed_ns=ns,
-                          device_completion_hz=(completed - 1) * 1e9 / ns if ns else None,
-                          host_reports=count, host_first_sequence=first_seq,
+                          device_frame_completion_hz=(completed - first_frames) * 1e9 / ns if ns else None,
+                          device_report_completion_hz=(device_reports - 1) * 1e9 / ns if ns else None,
+                          host_frames=count, host_reports=len(received), host_first_sequence=first_seq,
                           host_last_sequence=last_seq, host_gaps=gaps,
                           host_duplicates_or_backward=duplicate, host_malformed=malformed,
-                          host_active_span_hz=(count - 1) * 1e9 / elapsed if elapsed else None,
+                          host_active_span_hz=(count - first_report_frames) * 1e9 / elapsed if elapsed else None,
+                          host_report_active_span_hz=(len(received) - 1) * 1e9 / elapsed if elapsed else None,
                           host_capture="buffer first, validate after burst; HIDAPI queue may still overflow under host stalls",
                           measurement="SWD-triggered synthetic USB frames; no RF or matrix measurement")
             swd.record("receiver_usb_benchmark", **result)

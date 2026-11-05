@@ -11,7 +11,9 @@ confirms its trial image and enumerates at USB High Speed (480 Mbps), with a
 125 us HID polling interval. The original ZMK 0.2.0+1 was restored afterward.
 Both boards now run signed diagnostics. Initial two-board tests at 2480 MHz
 delivered approximately 7,934–7,995 fresh host reports/s, with sequence gaps.
-This demonstrates a working link near 8 kHz, not loss-free operation.
+The subsequent USB catch-up format passed three separate 60-second steady-state
+captures: 1,439,995 fresh frames total, with zero host/RF gaps, CRC errors or USB
+drops/errors. These bounded results do not establish recovery under interference.
 
 Nordic documents [proprietary radio rates up to 4 Mbps](https://www.nordicsemi.com/Products/nRF54LM20A).
 That PHY capability is not proof of an 8 kHz keyboard. The target here is a new
@@ -69,8 +71,11 @@ bootloader, not this application's USB interface.
 - A 16-frame queue and four USB buffers absorb small scheduling differences.
   Queue overflow, unavailable USB, and submission failure are observable counters;
   those buffers cannot compensate indefinitely for clock drift or interference.
-- USB uses vendor usage page `0xff00`, 32-byte input reports and a 125 us polling
-  interval. It cannot inject keyboard input. Experimental VID/PID `2fe3:0009`
+- USB uses vendor usage page `0xff00`, 64-byte input reports and a 125 us polling
+  interval. Each report contains one frame and either a second queued frame or
+  32 zero padding bytes. The receiver never waits to fill a pair. The previous
+  32-byte reports had no catch-up capacity when the independent RF and USB
+  clocks or scheduling diverged. It cannot inject keyboard input. Experimental VID/PID `2fe3:0009`
   needs a legitimate allocation for production distribution.
 
 The fixed packet airtime is approximately 84 us at 4 Mbps (2-byte preamble,
@@ -110,13 +115,13 @@ the result; this is not scan-to-host latency. Compare receiver counters to
 distinguish RF errors from later losses.
 A receiver USB accessory permission prompt may require Allow on macOS.
 
-The telemetry receiver build adds a read-only, unnumbered 96-byte HID feature
-report (`M8ST`, version 1). It snapshots RF counters, USB counters, individual
+The telemetry receiver build adds a read-only, unnumbered HID feature
+report (`M8ST`, version 1 is 96 bytes; version 2 is 112 bytes). It snapshots RF counters, USB counters, individual
 drop reasons, queue occupancy/high-water mark, buffer ownership and readiness.
 It accepts no output commands. Use `capture.py --stats --seconds 30` with this
 build; older receiver firmware does not support the feature and will fail the
-request. The two feature requests bracket the host capture, so their counter
-window is slightly longer than the host observation. Compare bounded deltas,
+request. The two feature requests bracket the host capture, but device uptime
+and host timing use separate clocks; the reported windows are not identical. Compare bounded deltas,
 not cumulative startup drops. Synthetic USB benchmarks deliberately suppress
 RF forwarding and must not be interpreted as loss-free RF tests.
 
@@ -128,7 +133,50 @@ measurement build. Do not interpret instrumentation as a forwarding repair.
 
 RX 0.3.0+6 implements this telemetry. Both receiver layouts build, malformed
 telemetry/wrap tests pass, and its signed package and UF2 reconstruction pass.
-Installation and hardware telemetry validation are pending the probe move to B.
+It was installed, confirmed, and matched complete signed-image readback. Its
+first 20-second capture identified 17 queue-full drops, with zero new RF missing
+sequences, CRC errors or USB submission errors. The 32-byte USB path delivered
+159,982 frames while RF received 160,000 fresh frames during its counter window.
+
+RX 0.3.0+7 adds the two-frame USB catch-up format and version-2 telemetry. Input
+reports remain polled every 125 us, now with a 64-byte maximum packet verified
+on the 480 Mbps High Speed bus. USB frame counters count payload frames, while
+`usb_reports_submitted/completed` count actual USB reports. `usb_dual_reports`
+records reports containing two frames. The host capture reports both USB report
+rate and fresh frame rate; `fresh_reports_per_second` is retained as a legacy
+alias for `fresh_frames_per_second`. Do not equate the two rates after batching.
+
+The first 20-second catch-up capture received 160,003 fresh frames with zero
+host gaps, RF sequence gaps, CRC errors, USB drops or submission errors. Its
+counter window included 39 dual reports. Three subsequent captures produced:
+
+| Separate window | Fresh frames | Fresh frames/s | Host gaps | RF gaps / CRC errors | USB drops / errors | Dual reports in counter window |
+|---|---:|---:|---:|---:|---:|---:|
+| 60 s, run 1 | 479,994 | 7,999.9 | 0 | 0 / 0 | 0 / 0 | 108 |
+| 60 s, run 2 | 480,001 | 8,000.0 | 0 | 0 / 0 | 0 / 0 | 115 |
+| 60 s, run 3 | 480,000 | 8,000.0 | 0 | 0 / 0 | 0 / 0 | 119 |
+
+These are separate steady-state
+windows after USB was ready. Cumulative startup drops are retained in telemetry
+and are not zero. There is no implemented RF acknowledgment/retry mechanism,
+so clean windows do not establish recovery under interference or outages.
+
+A separate RF-paused synthetic USB test delivered all 16,000 frames in 15,953
+reports without gaps or corruption. Device USB report completions measured
+7,999.3/s. The test used the same batching path, then RX was re-enabled. This
+maintenance pause is excluded from the subsequent RF measurement windows.
+This vendor format is not a standard keyboard report format or a completed ZMK
+wireless transport. It preserves diagnostic samples using occasional two-frame
+reports; it does not prove one fresh standard keyboard report every microframe.
+
+RX 0.3.0+8 retains that format and corrects the RTT labels to identify frame
+completion counts. The feature report separately exposes actual USB report
+completion counts. Both receiver layouts and the host protocol tests pass.
+RX8 was installed and confirmed, its complete signed image matched readback,
+and a software reset retained it with blank scratch and no swap. Its subsequent
+20-second capture delivered 160,007 fresh frames with zero host/RF gaps, CRC
+errors or USB drops/errors. This final window used 42 two-frame reports in the
+receiver counter interval.
 
 ## Single-board USB smoke test — 2026-11-05
 

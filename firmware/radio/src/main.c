@@ -146,7 +146,7 @@ int main(void)
    radio_completed, radio_fresh, radio_missing, radio_duplicate,
    radio_bad_crc, radio_bad_frame, radio_late);
 #if !RADIO_TX
-  printk("USB submitted=%u callbacks=%u dropped=%u errors=%u\n",
+  printk("USB frames submitted=%u completed=%u dropped=%u errors=%u\n",
    radio_usb_submitted, radio_usb_completed, radio_usb_dropped, radio_usb_errors);
 #endif
  }

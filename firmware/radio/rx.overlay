@@ -7,7 +7,7 @@ zephyr_udc0: &usbhs { status = "okay"; };
   compatible = "zephyr,hid-device";
   label = "Minew RF diagnostic";
   protocol-code = "none";
-  in-report-size = <32>;
+  in-report-size = <64>;
   in-polling-period-us = <125>;
  };
 };
