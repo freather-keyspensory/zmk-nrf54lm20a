@@ -7,4 +7,8 @@ trap 'rm -f "$test_bin"' EXIT
   "$root/frame_test.c" -o "$test_bin"
 "$test_bin"
 echo 'Radio diagnostic codec tests passed'
+"${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+  "$root/reliable_test.c" -o "$test_bin"
+"$test_bin"
+echo 'Reliable codec, backpressure, ACK-loss deduplication and session tests passed'
 python3 "$root/test_telemetry.py"

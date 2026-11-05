@@ -1,5 +1,12 @@
 # Experimental 8 kHz proprietary radio diagnostics
 
+The current opt-in **reliable** transport adds ACK/retry, boot sessions, bounded
+USB backpressure, channel reacquisition and automatic restart recovery. See
+[reliability design and hardware evidence](../../docs/radio-reliability.md) for
+its separate build commands and limitations. The default **legacy** transport
+and its historical timing results are documented below. These use different
+radio addresses and cannot communicate with one another.
+
 Target: two Minew MX54BE13 boards with nRF54LM20A. One transmits, the other
 receives and forwards fresh diagnostic frames to a USB High Speed vendor HID
 endpoint. This is the timing bring-up stage, **not a ZMK wireless keyboard
@@ -54,7 +61,7 @@ TX); this does not establish wireless link health. Writing 3 to the
 the existing UF2 recovery mode. Double-reset recovery also belongs to that
 bootloader, not this application's USB interface.
 
-## Diagnostic protocol
+## Legacy diagnostic protocol
 
 - Exclusive ownership of RADIO; Bluetooth is disabled. No simultaneous BLE mode.
 - Fixed configurable frequency (`CONFIG_MINEW_RADIO_FREQUENCY_MHZ`, currently

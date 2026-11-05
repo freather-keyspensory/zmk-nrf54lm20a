@@ -133,11 +133,30 @@ Before the radio diagnostics, Board A ran signed ZMK **0.2.0+1**, with USB prefe
 
 ## Current two-board test state
 
-Both boards have the patched MCUboot bootloader. Board A runs TX **0.3.0+2**;
-Board B runs RX **0.3.0+8**, both at 2408 MHz. These are vendor-HID timing
-diagnostics, not the ZMK keyboard application. The receiver forwards numbered
-test frames and does not inject keyboard input. USB now uses the catch-up format
-and has passed the zero-loss steady-state windows above. RF acknowledgment/retry,
-authenticated pairing/encryption, automatic session recovery and ZMK report
-integration remain unfinished. End-to-end latency and physical keyboard scanning
-have not been measured by these tests.
+Both boards have the patched MCUboot bootloader. Board A now runs reliable TX
+**0.4.0+3**; Board B runs reliable RX **0.4.0+5**, with ACK/retry, boot sessions,
+USB backpressure and reacquisition across 2408/2444/2474 MHz. These remain
+vendor-HID diagnostics and do not inject keyboard keys.
+
+The diagnostic reliability/software-restart phase passed: eleven controlled
+fault cases plus baseline, independent automatic restarts of both peers, and
+three 60-second native macOS IOHID captures. Those sustained windows delivered
+**1,440,010 fresh samples** near 8 kHz with zero host gaps, duplicates or malformed
+frames, and zero recorded RF gaps or USB drops/errors. A continuous transmitter
+restart exposed one session discontinuity and approximately 920 ms report
+interruption, with zero within-session gaps/duplicates after the queue-purge fix.
+No sequence RAM repair was used. Signature/tamper checks, UF2 reconstruction,
+host sanitizers/tests, reliable builds and legacy receiver build passed.
+
+The transmitter's full signed image matched SWD readback; patched bootloader and
+all settings remained unchanged, the primary was confirmed, scratch clear and
+write enable off. The receiver's unique USB serial matched its factory backup;
+schema 7 survived a software reset and USB/RF remained ready. Its latest image
+was not reread by SWD in this audit. See [reliability evidence and retained failures](radio-reliability.md)
+and [sanitized numeric results](radio-reliability-results.json).
+
+These are bounded sample-delivery results. RF retransmissions are expected;
+eight-sample batching can add 875 us before RF and host callback gaps reached
+about 9.6 ms without sequence loss. Authenticated pairing/encryption, ZMK report
+integration, physical scanning and end-to-end latency remain subsequent work.
+Physical power-loss/replug, Windows and host-reboot testing remain unverified.

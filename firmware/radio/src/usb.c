@@ -8,6 +8,14 @@
 #include <sample_usbd.h>
 #include <string.h>
 #include "frame.h"
+#if IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE)
+#include "reliable.h"
+extern volatile uint32_t radio_link_stats[LS_COUNT];
+int radio_link_control(uint32_t op, uint32_t value);
+#define FEATURE_SIZE 208
+#else
+#define FEATURE_SIZE 112
+#endif
 #define USB_REPORT_SIZE DT_PROP(DT_NODELABEL(radio_hid), in_report_size)
 BUILD_ASSERT(USB_REPORT_SIZE == 32 || USB_REPORT_SIZE == 64);
 
@@ -16,8 +24,8 @@ static const uint8_t descriptor[] = {
  0x06, 0x00, 0xff, 0x09, 0x01, 0xa1, 0x01,
  0x15, 0x00, 0x26, 0xff, 0x00, 0x75, 0x08, 0x95, USB_REPORT_SIZE,
  0x09, 0x01, 0x81, 0x02,
- /* Read-only telemetry feature; no output/control commands. */
- 0x95, 112, 0x09, 0x02, 0xb1, 0x02, 0xc0,
+ /* Telemetry; reliable mode additionally accepts bounded diagnostic controls. */
+ 0x95, FEATURE_SIZE, 0x09, 0x02, 0xb1, 0x02, 0xc0,
 };
 static const struct device *const hid = DEVICE_DT_GET(DT_NODELABEL(radio_hid));
 K_MSGQ_DEFINE(frames, FRAME_SIZE, 16, 4);
@@ -40,6 +48,32 @@ static volatile uint32_t drop_not_ready, drop_queue_full, drop_wait_timeout;
 static volatile uint32_t drop_no_buffer, drop_submit_failed, queue_high_water;
 extern volatile uint32_t radio_completed, radio_fresh, radio_missing, radio_duplicate;
 extern volatile uint32_t radio_bad_crc, radio_bad_frame;
+#if IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE)
+bool radio_usb_is_ready(void)
+{ return atomic_get(&ready) && atomic_get(&radio_usb_bench_state) != 1; }
+uint32_t radio_usb_begin_session(void)
+{
+ uint32_t discarded = k_msgq_num_used_get(&frames);
+ k_msgq_purge(&frames);
+ return discarded;
+}
+bool radio_usb_offer_batch(const uint8_t *data, size_t count)
+{
+ if (!count || count > ARQ_BATCH || !radio_usb_is_ready()) return false;
+ /* Single RF producer. Prevent another thread producer entering mid-batch;
+  * interrupts remain enabled and no packet is acknowledged before acceptance. */
+ k_sched_lock();
+ if (k_msgq_num_free_get(&frames) < count) { k_sched_unlock(); return false; }
+ for (size_t i = 0; i < count; i++) {
+  int err = k_msgq_put(&frames, data + i * FRAME_SIZE, K_NO_WAIT);
+  __ASSERT_NO_MSG(!err);
+ }
+ uint32_t queued = k_msgq_num_used_get(&frames);
+ if (queued > queue_high_water) queue_high_water = queued;
+ k_sched_unlock();
+ return true;
+}
+#endif
 /* Called only for fresh validated frames, from RADIO ISR. Never blocks. */
 void radio_usb_enqueue(const uint8_t *frame)
 {
@@ -83,15 +117,15 @@ static int get_size(const struct device *dev, uint8_t type, uint8_t id)
  ARG_UNUSED(dev);
  if (id != 0) return -ENOTSUP;
  if (type == HID_REPORT_TYPE_INPUT) return USB_REPORT_SIZE;
- return type == HID_REPORT_TYPE_FEATURE ? 112 : -ENOTSUP;
+ return type == HID_REPORT_TYPE_FEATURE ? FEATURE_SIZE : -ENOTSUP;
 }
 static int get_report(const struct device *dev, uint8_t type, uint8_t id, uint16_t len, uint8_t *buf)
 {
  ARG_UNUSED(dev);
  if (type != HID_REPORT_TYPE_FEATURE || id != 0) return -ENOTSUP;
- uint32_t words[28];
+ uint32_t words[FEATURE_SIZE / 4];
  words[0] = 0x5453384d; /* M8ST, little endian */
- words[1] = 2;
+ words[1] = IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE) ? 7 : 2;
  words[2] = k_uptime_get_32();
  words[3] = CONFIG_MINEW_RADIO_FREQUENCY_MHZ;
  /* Snapshot only loads while locked; serialize outside the RF critical path. */
@@ -108,16 +142,32 @@ static int get_report(const struct device *dev, uint8_t type, uint8_t id, uint16
  words[22] = atomic_get(&ready); words[23] = 0;
  words[24] = usb_reports_submitted; words[25] = usb_reports_completed;
  words[26] = usb_dual_reports; words[27] = USB_REPORT_SIZE;
+#if IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE)
+ for (size_t i = 0; i < LS_COUNT; i++) words[28 + i] = radio_link_stats[i];
+#endif
  irq_unlock(key);
- uint8_t report[112];
+ uint8_t report[FEATURE_SIZE];
  for (size_t i = 0; i < ARRAY_SIZE(words); i++) sys_put_le32(words[i], report + i * 4);
  size_t size = MIN(len, sizeof(report));
  memcpy(buf, report, size);
  return size;
 }
+#if IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE)
+static int verify_control(const struct device *dev, uint8_t type, uint8_t id, uint16_t len)
+{ ARG_UNUSED(dev); return type == HID_REPORT_TYPE_FEATURE && id == 0 && len == FEATURE_SIZE ? 0 : -EINVAL; }
+static int set_control(const struct device *dev, uint8_t type, uint8_t id, uint16_t len, const uint8_t *buf)
+{
+ if (verify_control(dev, type, id, len) || memcmp(buf, "R8CT", 4) || sys_get_le32(buf + 4) != 1) return -EINVAL;
+ for (size_t i = 16; i < FEATURE_SIZE; i++) if (buf[i]) return -EINVAL;
+ return radio_link_control(sys_get_le32(buf + 8), sys_get_le32(buf + 12));
+}
+#endif
 static const struct hid_device_ops ops = {
  .iface_ready = iface_ready, .input_report_done = done,
  .get_report_size = get_size, .get_report = get_report,
+#if IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE)
+ .verify_set_report = verify_control, .set_report = set_control,
+#endif
 };
 static void message(struct usbd_context *ctx, const struct usbd_msg *msg)
 {
@@ -140,8 +190,10 @@ static void forward(void *a, void *b, void *c)
  ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c);
  uint8_t frame[FRAME_SIZE];
  for (;;) {
-  k_msgq_get(&frames, frame, K_FOREVER);
-  if (k_sem_take(&available, K_MSEC(2))) {
+  /* A new RF session purges the queue and wakes waiters with -ENOMSG.
+   * Never submit the previous stack frame after that cancelled read. */
+  if (k_msgq_get(&frames, frame, K_FOREVER)) continue;
+  if (k_sem_take(&available, IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE) ? K_FOREVER : K_MSEC(2))) {
    drop_wait_timeout++;
    radio_usb_dropped++;
    if (atomic_get(&radio_usb_bench_state) == 1) radio_usb_bench_errors++;
@@ -157,7 +209,12 @@ static void forward(void *a, void *b, void *c)
      * A zero second slot means absent, not a repeated/synthetic RF sample. */
     if (USB_REPORT_SIZE == 64 && !k_msgq_get(&frames, buffers + i * 64 + FRAME_SIZE, K_NO_WAIT)) count_frames++;
     buffer_frames[i] = count_frames;
-    int err = atomic_get(&ready) ? hid_device_submit_report(hid, USB_REPORT_SIZE, buffers + i * 64) : -ENODEV;
+    int err;
+    do {
+     if (IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE)) while (!atomic_get(&ready)) k_sleep(K_MSEC(1));
+     err = atomic_get(&ready) ? hid_device_submit_report(hid, USB_REPORT_SIZE, buffers + i * 64) : -ENODEV;
+     if (err && IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE)) { radio_usb_errors++; k_sleep(K_MSEC(1)); }
+    } while (err && IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE));
     if (err) {
      drop_submit_failed += count_frames; radio_usb_dropped += count_frames;
      radio_usb_errors++;

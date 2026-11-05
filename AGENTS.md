@@ -8,6 +8,8 @@ Read `README.md`, `docs/build.md`, `docs/testing.md`, and `firmware/bootloader/R
 - Use the pinned ZMK, Zephyr, MCUboot, and west dependencies. Keep compatibility patches small. Do not silently upgrade the stack.
 - Distinguish source implemented, build passed, host tests passed, and real hardware tests passed. Never infer USB/BLE HID success from enumeration/advertising alone.
 - Check the current test report before asserting bootloader/update/rollback readiness. Simulator or host verification is not a power-loss test.
+- Radio `legacy` and `reliable` variants have different addresses and build directories. Preserve the default legacy path and explicitly select reliable packages for both peers. Read `docs/radio-reliability.md` before changing that protocol.
+- Distinguish 8 kHz diagnostic sample production, 125 us USB polling, batched delivery, and actual keyboard latency. ACK/retry recovery is not evidence that no physical RF packet was lost. On macOS use the direct IOHID collector for acceptance captures and inspect end-to-end sequences; completion callbacks alone do not prove host delivery.
 
 ## Device operations
 

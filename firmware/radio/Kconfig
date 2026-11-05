@@ -1,4 +1,11 @@
 mainmenu "Minew 8 kHz radio diagnostic"
+config MINEW_RADIO_RELIABLE
+ bool "Experimental acknowledged radio transport"
+ default n
+ select ENTROPY_GENERATOR
+ select REBOOT
+ help
+   Bounded diagnostic ARQ, sessions and channel reacquisition. Not encrypted.
 config MINEW_RADIO_FREQUENCY_MHZ
  int "Fixed diagnostic radio frequency in MHz"
  range 2402 2480

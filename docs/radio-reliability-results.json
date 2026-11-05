@@ -1,0 +1,444 @@
+{
+  "schema": 1,
+  "date": "2026-11-05",
+  "scope": "Completed diagnostic wireless reliability and software-restart recovery phase; not ZMK keyboard integration or security qualification.",
+  "hardware": "Two Minew MX54BE13 / ME54BS13 nRF54LM20A boards",
+  "host": "macOS; direct preallocated IOHID collector, hardware remains USB High Speed with bInterval=1",
+  "firmware": [
+    {
+      "role": "tx",
+      "version": "0.4.0+3",
+      "signed_bytes": 50423,
+      "signed_sha256": "83904f7893f4511a5ac177b2b40c415eda0f58f2e7f969c2f1698bc007f516c4",
+      "uf2_sha256": "0f41984b3662be5d207921ca50242b050f61a13f743b15314ced83a008ab8bab",
+      "reconstruction_matches": true
+    },
+    {
+      "role": "rx",
+      "version": "0.4.0+5",
+      "signed_bytes": 85191,
+      "signed_sha256": "84c930eccb8b44b5e0439fd09d2361a779ca7b7b3a28a350696a13ac7dd66b95",
+      "uf2_sha256": "b11809b8fb143023a869a02d29b33ddebfec3f1b5b528c0e41d94230ac1f7541",
+      "reconstruction_matches": true
+    }
+  ],
+  "signature_checks": [
+    {
+      "role": "tx",
+      "version": "0.4.0+3",
+      "signature_valid": true,
+      "tampered_payload_rejected": true
+    },
+    {
+      "role": "rx",
+      "version": "0.4.0+5",
+      "signature_valid": true,
+      "tampered_payload_rejected": true
+    }
+  ],
+  "fault_matrix": [
+    {
+      "name": "baseline",
+      "passed": true,
+      "fresh": 80002,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 8000.114898777764,
+      "channel": 2408,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 0,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 0,
+        "link_injected_ack": 0,
+        "link_discarded": 0,
+        "link_hops": 0
+      }
+    },
+    {
+      "name": "drop-data-1",
+      "passed": true,
+      "fresh": 80004,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 8000.2297951111095,
+      "channel": 2408,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 0,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 1,
+        "link_injected_ack": 0,
+        "link_discarded": 0,
+        "link_hops": 0
+      }
+    },
+    {
+      "name": "drop-data-8",
+      "passed": true,
+      "fresh": 80002,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 8000.029799366019,
+      "channel": 2408,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 0,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 8,
+        "link_injected_ack": 0,
+        "link_discarded": 0,
+        "link_hops": 0
+      }
+    },
+    {
+      "name": "drop-data-32",
+      "passed": true,
+      "fresh": 80006,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 8000.097993850885,
+      "channel": 2408,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 0,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 32,
+        "link_injected_ack": 0,
+        "link_discarded": 0,
+        "link_hops": 0
+      }
+    },
+    {
+      "name": "drop-data-64",
+      "passed": true,
+      "fresh": 80018,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 8001.310287005063,
+      "channel": 2444,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 16,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 64,
+        "link_injected_ack": 0,
+        "link_discarded": 0,
+        "link_hops": 1
+      }
+    },
+    {
+      "name": "drop-ack-1",
+      "passed": true,
+      "fresh": 80002,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 7999.928302435028,
+      "channel": 2444,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 32,
+        "radio_bad_crc": 2,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 0,
+        "link_injected_ack": 1,
+        "link_discarded": 0,
+        "link_hops": 0
+      }
+    },
+    {
+      "name": "drop-ack-8",
+      "passed": true,
+      "fresh": 80002,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 7999.974567116679,
+      "channel": 2444,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 64,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 0,
+        "link_injected_ack": 8,
+        "link_discarded": 0,
+        "link_hops": 0
+      }
+    },
+    {
+      "name": "drop-ack-32",
+      "passed": true,
+      "fresh": 80002,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 8000.027465807652,
+      "channel": 2444,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 256,
+        "radio_bad_crc": 2,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 0,
+        "link_injected_ack": 32,
+        "link_discarded": 0,
+        "link_hops": 0
+      }
+    },
+    {
+      "name": "drop-ack-64",
+      "passed": true,
+      "fresh": 80006,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 8000.066095588945,
+      "channel": 2474,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 512,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 0,
+        "link_injected_ack": 64,
+        "link_discarded": 0,
+        "link_hops": 1
+      }
+    },
+    {
+      "name": "pause-20ms",
+      "passed": true,
+      "fresh": 80004,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 8000.306996431167,
+      "channel": 2474,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 0,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 0,
+        "link_injected_ack": 0,
+        "link_discarded": 0,
+        "link_hops": 0
+      }
+    },
+    {
+      "name": "pause-100ms",
+      "passed": true,
+      "fresh": 80016,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 8001.485712379124,
+      "channel": 2408,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 0,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 0,
+        "link_injected_ack": 0,
+        "link_discarded": 0,
+        "link_hops": 1
+      }
+    },
+    {
+      "name": "channel-reacquisition",
+      "passed": true,
+      "fresh": 79984,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 7998.247833334972,
+      "channel": 2444,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 8,
+        "radio_bad_crc": 1,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 0,
+        "link_injected_ack": 0,
+        "link_discarded": 0,
+        "link_hops": 1
+      }
+    },
+    {
+      "name": "after-receiver-restart",
+      "passed": true,
+      "fresh": 80002,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "fresh_hz": 8000.052099036819,
+      "channel": 2474,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_duplicate": 0,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_injected_data": 0,
+        "link_injected_ack": 0,
+        "link_discarded": 0,
+        "link_hops": 0
+      }
+    }
+  ],
+  "receiver_restart": {
+    "receiver_epoch_changed": true,
+    "sender_session_changed": true,
+    "observed_recovery_seconds": 1.5348713330022292,
+    "note": "Restart discontinuity; not a continuous loss-free capture"
+  },
+  "transmitter_restart": {
+    "observed_link_down": true,
+    "new_sender_session": true,
+    "receiver_session_unchanged": true,
+    "observed_recovery_seconds": 1.2873195829888573,
+    "continuous_capture_fresh_samples": 152650,
+    "session_changes": 1,
+    "within_session_missing": 0,
+    "host_duplicates": 0,
+    "max_host_report_interruption_ms": 920.329167,
+    "sequence_ram_repair_used": false,
+    "note": "Reboot is an explicit discontinuity; lost volatile samples across reset are not a continuous zero-loss claim."
+  },
+  "steady_state": [
+    {
+      "run": 1,
+      "observation_seconds": 60.000586958,
+      "fresh_samples": 480002,
+      "fresh_samples_per_second": 7999.955072706174,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "malformed": 0,
+      "session_changes": 0,
+      "max_host_callback_gap_ms": 9.366167,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_discarded": 0
+      }
+    },
+    {
+      "run": 2,
+      "observation_seconds": 60.000540459,
+      "fresh_samples": 480004,
+      "fresh_samples_per_second": 7999.994605515259,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "malformed": 0,
+      "session_changes": 0,
+      "max_host_callback_gap_ms": 6.994083,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_discarded": 0
+      }
+    },
+    {
+      "run": 3,
+      "observation_seconds": 60.00010425,
+      "fresh_samples": 480004,
+      "fresh_samples_per_second": 8000.052766574985,
+      "host_missing": 0,
+      "host_duplicates": 0,
+      "malformed": 0,
+      "session_changes": 0,
+      "max_host_callback_gap_ms": 9.558,
+      "receiver_counters": {
+        "radio_missing": 0,
+        "radio_bad_crc": 0,
+        "usb_dropped": 0,
+        "usb_errors": 0,
+        "link_discarded": 0
+      }
+    }
+  ],
+  "steady_state_total_fresh_samples": 1440010,
+  "fault_capture_total_fresh_samples": 1040050,
+  "source_monitor": {
+    "link_samples": 242634,
+    "link_queue_overflow": 0,
+    "link_discarded": 0,
+    "link_losses": 0,
+    "link_sample_late": 0,
+    "link_retries": 3,
+    "requested_wait_seconds": 30.0,
+    "note": "Live SWD snapshots are non-atomic and include attach/read time; not an exact 30-second rate measurement.",
+    "largest_queue_since_transmitter_boot": 2412,
+    "queue_capacity_samples": 4096,
+    "total_overflow_since_transmitter_boot": 0,
+    "total_late_samples_since_transmitter_boot": 0
+  },
+  "final_audit": {
+    "transmitter_unique_id_verified": true,
+    "transmitter_complete_signed_image_readback_matches": true,
+    "transmitter_bootloader_unchanged": true,
+    "transmitter_settings_unchanged": true,
+    "transmitter_confirmed": true,
+    "transmitter_scratch_trailer_clear": true,
+    "transmitter_core_running": true,
+    "transmitter_rram_write_enable_off": true,
+    "receiver_unique_usb_serial_matches_factory_backup": true,
+    "receiver_schema_7_retained_across_restart": true,
+    "receiver_usb_and_rf_ready": true,
+    "receiver_verification": "Signed UF2 validation and schema retained across software restart; current receiver application not reread via SWD."
+  },
+  "retained_failures": [
+    {
+      "revision": "0.4.0+1",
+      "reason": "Seven full-frame batches could not sustain sample production; source queue overflowed.",
+      "first_capture_fresh": 63262,
+      "first_capture_session_changes": 4,
+      "first_capture_host_duplicates": 4
+    },
+    {
+      "revision": "0.4.0+2",
+      "reason": "Large loss bursts caused session resets; receive deadline truncated in-progress packets and channel dwell was too short."
+    },
+    {
+      "collector": "Python/HIDAPI, cold shared controller",
+      "host_missing": 382,
+      "reason": "Failed end-to-end capture despite clean device loss counters."
+    },
+    {
+      "collector": "Python/HIDAPI, persistent controller repeat",
+      "host_missing": 6,
+      "reason": "Failed capture; direct IOHID collector subsequently used to remove HIDAPI input queue."
+    },
+    {
+      "revision": "RX 0.4.0+4",
+      "restart_host_duplicates": 1,
+      "reason": "Queue purge woke a blocked read with -ENOMSG; ignored error reused the previous frame. Fixed in RX +5."
+    }
+  ],
+  "limits": [
+    "Synthetic numbered samples, not physical keys or a ZMK transport.",
+    "8,000 fresh samples/s is an average delivery rate; DATA batches hold eight samples and can add 875 us before RF.",
+    "Host callback timing is not USB bus timing or scan-to-host latency; callback delays up to about 9.6 ms occurred without sequence loss.",
+    "RF packet retries are expected; zero unrecovered host sample gaps does not mean no physical packet loss.",
+    "Finite controlled windows, not a guarantee under arbitrary interference, host load, range or power loss.",
+    "No pairing, encryption or authentication; vendor HID cannot inject keyboard keys.",
+    "Physical cable replug, power-loss stress, host reboot and Windows remain unverified.",
+    "Raw captures, unique identifiers, keys and full device backups remain private."
+  ]
+}

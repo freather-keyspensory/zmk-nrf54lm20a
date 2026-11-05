@@ -24,9 +24,15 @@ static inline void frame_make(uint8_t *p, uint32_t seq)
 }
 static inline bool frame_valid(const uint8_t *p, size_t len)
 {
- if (len != FRAME_SIZE || p[0] != 'M' || p[1] != '8' || p[2] != 1 || p[3]) return false;
+ if (len != FRAME_SIZE || p[0] != 'M' || p[1] != '8' || (p[2] != 1 && p[2] != 2) || p[3]) return false;
  uint32_t seq = frame_get32(p + 4);
- for (unsigned i = 8; i < FRAME_SIZE; i++) if (p[i] != (uint8_t)(seq + i * 17)) return false;
+ unsigned end = p[2] == 2 ? 28 : FRAME_SIZE;
+ if (p[2] == 2 && !frame_get32(p + 28)) return false;
+ for (unsigned i = 8; i < end; i++) if (p[i] != (uint8_t)(seq + i * 17)) return false;
  return true;
+}
+static inline void frame_make_session(uint8_t *p, uint32_t seq, uint32_t epoch)
+{
+ frame_make(p, seq); p[2] = 2; frame_put32(p + 28, epoch);
 }
 #endif
