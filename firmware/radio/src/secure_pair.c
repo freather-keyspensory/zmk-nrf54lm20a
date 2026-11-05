@@ -110,11 +110,19 @@ void rf_pair_service(void)
   if (!rc) rc = settings_load_subtree_direct(NULL, hash_existing, &after);
   if (!rc && memcmp(&before, &after, sizeof(before))) rc = -EIO;
   if (!rc) {
+   /* The ZMK maintenance service can run below the RF worker. Publish the
+    * complete record and generation together, matching the snapshot lock. */
+   k_sched_lock();
    memcpy(active, record, 64); atomic_set(&paired, true);
    if ((uint32_t)atomic_inc(&generation) == UINT32_MAX) atomic_set(&generation, 1);
+   k_sched_unlock();
   }
  }
- if (rc && storage_attempted) { atomic_set(&paired, false); mbedtls_platform_zeroize(active, sizeof(active)); atomic_inc(&generation); }
+ if (rc && storage_attempted) {
+  k_sched_lock(); atomic_set(&paired, false);
+  mbedtls_platform_zeroize(active, sizeof(active)); atomic_inc(&generation);
+  k_sched_unlock();
+ }
  mbedtls_platform_zeroize(record, sizeof(record)); mbedtls_platform_zeroize(verified, sizeof(verified));
  radio_pair_mailbox.generation = atomic_get(&generation);
  radio_pair_completed_token = completed_token;

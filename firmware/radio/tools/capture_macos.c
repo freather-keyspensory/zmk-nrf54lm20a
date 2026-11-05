@@ -36,7 +36,7 @@ static void number(CFMutableDictionaryRef d, CFStringRef key, int value)
 }
 int main(int argc, char **argv)
 {
- if (argc != 5) { fprintf(stderr, "Usage: capture_macos SECONDS OUTPUT SERIAL READY_FILE\n"); return 2; }
+ if (argc != 5 && argc != 6) { fprintf(stderr, "Usage: capture_macos SECONDS OUTPUT SERIAL READY_FILE\n"); return 2; }
  char *end; double seconds = strtod(argv[1], &end);
  if (*end || seconds <= 0 || seconds > 60) return 2;
  capacity = (uint64_t)(seconds * 10000) + 4096;
@@ -46,7 +46,9 @@ int main(int argc, char **argv)
  CFMutableDictionaryRef match = CFDictionaryCreateMutable(NULL, 0,
           &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
  number(match, CFSTR(kIOHIDVendorIDKey), 0x2fe3);
- number(match, CFSTR(kIOHIDProductIDKey), 9);
+ int product=9;
+ if (argc == 6) { char *tail; long p=strtol(argv[5],&tail,10); if (*tail || (p!=9 && p!=10)) return 2; product=(int)p; }
+ number(match, CFSTR(kIOHIDProductIDKey), product);
  number(match, CFSTR(kIOHIDPrimaryUsagePageKey), 0xff00);
  CFStringRef serial = CFStringCreateWithCString(NULL, argv[3], kCFStringEncodingUTF8);
  CFDictionarySetValue(match, CFSTR(kIOHIDSerialNumberKey), serial);

@@ -87,7 +87,7 @@ static struct k_work_delayable heartbeat_work;
 static void heartbeat(struct k_work *work) {
  minew_boot_heartbeat++;
 #if IS_ENABLED(CONFIG_BOOTLOADER_MCUBOOT)
- if (minew_boot_heartbeat == 5 && bt_is_ready()) {
+ if (minew_boot_heartbeat == 5 && (!IS_ENABLED(CONFIG_BT) || bt_is_ready())) {
   int err = boot_write_img_confirmed();
   printk("MINEW image confirmation: %d\n", err);
  }

@@ -162,9 +162,9 @@ integration, physical scanning and end-to-end latency remain subsequent work.
 Physical power-loss/replug, Windows and host-reboot testing remain unverified.
 
 
-## Current authenticated two-board diagnostics
+## Previous authenticated diagnostic baseline
 
-Board A now runs signed secure TX **0.5.0+3** and B secure RX **0.5.0+7**.
+At this earlier checkpoint, A ran signed secure TX **0.5.0+3** and B secure RX **0.5.0+7**.
 The authenticated diagnostic phase passed 23 final fault/restart capture windows,
 same-identity wrong-secret rejection, malformed/implicit replacement rejection,
 idempotent provisioning and explicit re-pairing. Three 60-second encrypted
@@ -180,3 +180,27 @@ batched vendor-HID samples, not an integrated ZMK radio keyboard or a 125 us
 scan-to-host result. A used SWD updates because its recovery USB drive did not
 enumerate in this session. Physical power-loss/replug, Windows and host reboot
 remain unverified.
+
+
+## Current ZMK keyboard radio state
+
+A runs signed ZMK radio TX **0.6.0+4**; B runs receiver **0.6.0+6**. Actual mapped
+keyboard input reached TextEdit over encrypted RF and USB; macOS key-down/key-up
+and post-restart typing passed. During a verified two-second source core halt,
+the receiver released the host key after **308.3 ms** and automatically
+rejoined when A resumed. Re-pairing during authenticated setup, same-identity
+wrong-secret rejection, atomic key publication and independent restart persistence
+were verified without resetting after replacement or repairing sequence RAM.
+
+The final build passed 23 fault/restart windows and a 60-second **480,004**
+snapshot capture near 8 kHz, with zero observed sequence gaps/duplicates or
+recorded USB/keyboard delivery errors. Three earlier one-minute integration
+captures passed the same transport checks; the four windows total **1,920,016**
+snapshots across explicitly recorded firmware versions. Vendor input redacts key
+bytes, and both High Speed IN endpoints advertise 125 us polling. Source/signed
+image/settings audits and build/host/package checks passed.
+
+See [ZMK radio details and limitations](zmk-radio.md) and [numeric evidence](zmk-radio-results.json).
+These results qualify functional manual-key report forwarding and bounded
+recovery. Physical MX/EC/HE scanning, 125 us scan-to-host latency, active media
+key actions, Windows and physical power/replug coverage remain unverified.

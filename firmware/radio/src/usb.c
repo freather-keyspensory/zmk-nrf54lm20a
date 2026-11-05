@@ -55,8 +55,24 @@ static volatile uint32_t drop_no_buffer, drop_submit_failed, queue_high_water;
 extern volatile uint32_t radio_completed, radio_fresh, radio_missing, radio_duplicate;
 extern volatile uint32_t radio_bad_crc, radio_bad_frame;
 #if IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE)
+#if IS_ENABLED(CONFIG_MINEW_RADIO_KEYBOARD)
+static int64_t ready_hold_until;
+int radio_usb_hold_ready(uint32_t ms)
+{
+ if (ms > 10000) return -EINVAL;
+ unsigned key = irq_lock(); ready_hold_until = ms ? k_uptime_get()+ms : 0; irq_unlock(key);
+ return 0;
+}
+#endif
 bool radio_usb_is_ready(void)
-{ return atomic_get(&ready) && atomic_get(&radio_usb_bench_state) != 1; }
+{
+#if IS_ENABLED(CONFIG_MINEW_RADIO_KEYBOARD)
+ extern bool radio_keyboard_is_ready(void);
+ unsigned key = irq_lock(); bool hold = k_uptime_get() < ready_hold_until; irq_unlock(key);
+ if (hold || !radio_keyboard_is_ready()) return false;
+#endif
+ return atomic_get(&ready) && atomic_get(&radio_usb_bench_state) != 1;
+}
 uint32_t radio_usb_begin_session(void)
 {
  uint32_t discarded = k_msgq_num_used_get(&frames);
@@ -131,7 +147,7 @@ static int get_report(const struct device *dev, uint8_t type, uint8_t id, uint16
  if (type != HID_REPORT_TYPE_FEATURE || id != 0) return -ENOTSUP;
  uint32_t words[FEATURE_SIZE / 4];
  words[0] = 0x5453384d; /* M8ST, little endian */
- words[1] = IS_ENABLED(CONFIG_MINEW_RADIO_SECURE) ? 12 : IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE) ? 7 : 2;
+ words[1] = IS_ENABLED(CONFIG_MINEW_RADIO_KEYBOARD) ? 17 : IS_ENABLED(CONFIG_MINEW_RADIO_SECURE) ? 12 : IS_ENABLED(CONFIG_MINEW_RADIO_RELIABLE) ? 7 : 2;
  words[2] = k_uptime_get_32();
  words[3] = CONFIG_MINEW_RADIO_FREQUENCY_MHZ;
  /* Snapshot only loads while locked; serialize outside the RF critical path. */
@@ -156,6 +172,15 @@ static int get_report(const struct device *dev, uint8_t type, uint8_t id, uint16
  /* Read completion status and token together, never a cached earlier success. */
  words[51] = radio_pair_completed_token;
  words[60] = radio_pair_mailbox.response; words[61] = radio_pair_mailbox.generation;
+#endif
+#if IS_ENABLED(CONFIG_MINEW_RADIO_KEYBOARD)
+ extern void radio_keyboard_snapshot(uint32_t out[7]);
+ uint32_t keyboard_stats[7]; radio_keyboard_snapshot(keyboard_stats);
+ /* Only reuse TX-only counters in this receiver profile; retain the real
+  * receiver link-loss counter at word 49. Flags use TX sample-late's slot. */
+ memcpy(words+44, keyboard_stats, 5*sizeof(uint32_t));
+ words[50] = keyboard_stats[5] | (keyboard_stats[6]<<1);
+ if (k_uptime_get() < ready_hold_until) words[50] |= 8;
 #endif
  irq_unlock(key);
  uint8_t report[FEATURE_SIZE];
@@ -198,6 +223,10 @@ static void message(struct usbd_context *ctx, const struct usbd_msg *msg)
 int radio_usb_init(void)
 {
  if (!device_is_ready(hid)) return -ENODEV;
+#if IS_ENABLED(CONFIG_MINEW_RADIO_KEYBOARD)
+ extern int radio_keyboard_init(void);
+ int keyboard_err = radio_keyboard_init(); if (keyboard_err) return keyboard_err;
+#endif
  int err = hid_device_register(hid, descriptor, sizeof(descriptor), &ops);
  if (err) return err;
  struct usbd_context *ctx = sample_usbd_init_device(message);
@@ -227,6 +256,16 @@ static void forward(void *a, void *b, void *c)
     /* Never wait to fill a batch: use the spare slot only for queued data.
      * A zero second slot means absent, not a repeated/synthetic RF sample. */
     if (USB_REPORT_SIZE == 64 && !k_msgq_get(&frames, buffers + i * 64 + FRAME_SIZE, K_NO_WAIT)) count_frames++;
+#if IS_ENABLED(CONFIG_MINEW_RADIO_KEYBOARD)
+    extern void radio_keyboard_offer_frame(const uint8_t *frame);
+    for (unsigned f = 0; f < count_frames; f++) {
+     uint8_t *received = buffers+i*64+f*FRAME_SIZE;
+     radio_keyboard_offer_frame(received);
+     /* Keep sequence/epoch telemetry one-for-one with received snapshots,
+      * but never export key bytes on the unprivileged vendor interface. */
+     received[2] = 4; memset(received+8, 0, 20);
+    }
+#endif
     buffer_frames[i] = count_frames;
     int err;
     do {

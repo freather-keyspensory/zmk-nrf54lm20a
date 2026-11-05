@@ -42,3 +42,9 @@ manifest already includes Mbed TLS and TF-PSA-Crypto; no dependency upgrade is
 required. Pair credentials are generated locally and provisioned over trusted
 wires, separately from signing keys and firmware builds. The default radio build
 remains the unencrypted legacy diagnostic.
+
+The [ZMK radio mode](zmk-radio.md) has a dedicated `firmware/radio/zmk/build.sh`
+transmitter build and a `keyboard` receiver variant. The setup script additionally
+applies `firmware/patches/zmk-v0.3.0-minew-radio.patch` after the compatibility patch;
+the radio hooks are inactive in the default USB/BLE/Studio build. In an existing
+pinned workspace, check/apply that small additional patch before building this mode.

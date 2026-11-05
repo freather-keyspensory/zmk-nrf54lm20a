@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#if defined(CONFIG_MINEW_RADIO_KEYBOARD)
+#include "keyboard_frame.h"
+#endif
 /* Diagnostic only: fixed 32-byte payload, explicitly little endian. */
 #define FRAME_SIZE 32
 /* 0: duplicate/backward; positive: forward distance (wrap-aware). */
@@ -24,6 +27,10 @@ static inline void frame_make(uint8_t *p, uint32_t seq)
 }
 static inline bool frame_valid(const uint8_t *p, size_t len)
 {
+ #if defined(CONFIG_MINEW_RADIO_KEYBOARD)
+ if (len == FRAME_SIZE && p[0] == 'M' && p[1] == '8' && p[2] == 3 && !p[3])
+  return frame_get32(p+28) && rf_keyboard_payload_valid(p+8);
+#endif
  if (len != FRAME_SIZE || p[0] != 'M' || p[1] != '8' || (p[2] != 1 && p[2] != 2) || p[3]) return false;
  uint32_t seq = frame_get32(p + 4);
  unsigned end = p[2] == 2 ? 28 : FRAME_SIZE;

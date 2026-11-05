@@ -4,8 +4,8 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 role="${1:-}"
 layout="${2:-standalone}"
 variant="${3:-legacy}"
-case "$variant" in legacy|reliable|crypto-probe|dtls-probe|secure) ;; *) echo 'Unknown variant' >&2; exit 2 ;; esac
-case "$role" in tx|rx) ;; *) echo 'Usage: build.sh tx|rx [standalone|mcuboot] [legacy|reliable|crypto-probe|dtls-probe|secure]' >&2; exit 2 ;; esac
+case "$variant" in legacy|reliable|crypto-probe|dtls-probe|secure|keyboard) ;; *) echo 'Unknown variant' >&2; exit 2 ;; esac
+case "$role" in tx|rx) ;; *) echo 'Usage: build.sh tx|rx [standalone|mcuboot] [legacy|reliable|crypto-probe|dtls-probe|secure|keyboard]' >&2; exit 2 ;; esac
 case "$layout" in standalone|mcuboot) ;; *) echo 'Unknown layout' >&2; exit 2 ;; esac
 export PATH="$root/../port/.venv/bin:/opt/homebrew/bin:$PATH"
 export ZEPHYR_BASE="$root/../port/zephyr"
@@ -23,7 +23,7 @@ else extra+=("-DCONFIG_MINEW_RADIO_CRYPTO_PROBE=n"); fi
 if [[ "$variant" == dtls-probe ]]; then
  extra+=("-DCONFIG_MINEW_RADIO_DTLS_PROBE=y" "-DCONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=512" "-DCONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=224")
 else extra+=("-DCONFIG_MINEW_RADIO_DTLS_PROBE=n"); fi
-if [[ "$variant" == secure ]]; then
+if [[ "$variant" == secure || "$variant" == keyboard ]]; then
  extra+=("-DCONFIG_MINEW_RADIO_SECURE=y" "-UCONFIG_COMPILER_OPT")
 else extra+=("-DCONFIG_MINEW_RADIO_SECURE=n"); fi
 if [[ "$variant" != legacy && "$role" == rx ]]; then extra+=("-DCONFIG_USBD_THREAD_STACK_SIZE=2048"); fi
@@ -37,8 +37,14 @@ if [[ "$layout" == mcuboot ]]; then
   conf+=";$root/slot.conf"
   overlays="${overlays:+$overlays;}$root/slot.overlay"
 fi
-if [[ "$variant" == secure ]]; then conf+=";$root/secure.conf"; fi
-if [[ "$variant" == secure && "$role" == rx ]]; then conf+=";$root/secure_rx.conf"; fi
+if [[ "$variant" == secure || "$variant" == keyboard ]]; then conf+=";$root/secure.conf"; fi
+if [[ ( "$variant" == secure || "$variant" == keyboard ) && "$role" == rx ]]; then conf+=";$root/secure_rx.conf"; fi
+if [[ "$variant" == keyboard ]]; then
+ if [[ "$role" != rx ]]; then echo 'Keyboard TX uses zmk/build.sh' >&2; exit 2; fi
+ extra+=("-DCONFIG_MINEW_RADIO_KEYBOARD=y")
+ conf+=";$root/keyboard_rx.conf"
+ overlays+=";$root/keyboard_rx.overlay"
+else extra+=("-DCONFIG_MINEW_RADIO_KEYBOARD=n"); fi
 extra+=("-DCONF_FILE=$conf" "-DDTC_OVERLAY_FILE=$overlays")
 build_name="$role"
 if [[ "$layout" == mcuboot ]]; then build_name="$role-mcuboot"; fi

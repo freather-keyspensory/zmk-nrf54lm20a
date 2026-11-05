@@ -13,7 +13,15 @@ from pathlib import Path
 
 
 def valid(data):
-    if len(data) != 32 or bytes(data[:2]) != b"M8" or data[2] not in (1, 2) or data[3]:
+    if len(data) != 32 or bytes(data[:2]) != b"M8" or data[2] not in (1, 2, 3, 4) or data[3]:
+        return False
+    if data[2] == 4:
+        return bool(int.from_bytes(bytes(data[28:32]), "little")) and not any(data[8:28])
+    if data[2] == 3:
+        p = bytes(data[8:28]); n = p[0]
+        if not int.from_bytes(bytes(data[28:32]), "little") or p[1] or n not in (9,13) or any(p[2+n:]): return False
+        if p[2] == 1: return n == 9 and p[4] == 0
+        if p[2] == 2: return n == 13 and all(not (p[i]&0xf0) for i in range(4,15,2))
         return False
     seq = int.from_bytes(bytes(data[4:8]), "little")
     end = 28 if data[2] == 2 else 32
@@ -61,8 +69,8 @@ def main():
     if args.shared:
         from hid_options import shared_open
         shared_open(hid)
-    devices = hid.enumerate(0x2FE3, 0x0009)
-    devices = [d for d in devices if d.get("usage_page") == 0xFF00 and
+    devices = hid.enumerate(0x2FE3, 0)
+    devices = [d for d in devices if d.get("product_id") in (9,10) and d.get("usage_page") == 0xFF00 and
                (args.serial is None or d.get("serial_number") == args.serial)]
     if len(devices) != 1:
         parser.error(f"Expected one matching diagnostic receiver, found {len(devices)}")
@@ -106,7 +114,7 @@ def main():
         gc.disable()
         if args.native_macos:
             from native_capture import collect
-            received, started, stopped = collect(args.seconds, devices[0]["serial_number"], args.ready_file)
+            received, started, stopped = collect(args.seconds, devices[0]["serial_number"], args.ready_file, devices[0]["product_id"])
         while not args.native_macos and time.perf_counter() < end:
             if payload and not attempted_injection and (time.perf_counter_ns() - started) / 1e9 >= args.inject_after:
                 attempted_injection = True
@@ -144,7 +152,7 @@ def main():
         if not valid(data):
             malformed += 1
             continue
-        epoch = int.from_bytes(bytes(data[28:32]), "little") if data[2] == 2 else None
+        epoch = int.from_bytes(bytes(data[28:32]), "little") if data[2] in (2,3,4) else None
         seq = int.from_bytes(bytes(data[4:8]), "little")
         if not seen_epochs or epoch != current_epoch:
             if epoch in seen_epochs:

@@ -12,7 +12,11 @@
 #endif
 #ifndef ARQ_WIRE_VERSION
 #if defined(CONFIG_MINEW_RADIO_SECURE)
+#if defined(CONFIG_MINEW_RADIO_KEYBOARD)
+#define ARQ_WIRE_VERSION 5
+#else
 #define ARQ_WIRE_VERSION 4
+#endif
 #else
 #define ARQ_WIRE_VERSION 2
 #endif
@@ -55,9 +59,14 @@ static inline bool arq_valid(const uint8_t *p, size_t len)
  for (unsigned i = 0; i < p[12]; i++) {
   const uint8_t *sample = p + ARQ_HEADER + i * ARQ_SAMPLE_BYTES;
   uint32_t seq = frame_get32(p + 8) + i;
+#if defined(CONFIG_MINEW_RADIO_KEYBOARD)
+  (void)seq;
+  if (!rf_keyboard_payload_valid(sample)) return false;
+#else
   for (unsigned j = 0; j < ARQ_SAMPLE_BYTES; j++) {
    if (sample[j] != (uint8_t)(seq + (j + 8) * 17)) return false;
   }
+#endif
  }
  return true;
 }
@@ -69,7 +78,7 @@ static inline size_t arq_pack_data(uint8_t *p, const uint8_t *frames, uint8_t co
  uint32_t epoch = frame_get32(frames + 28), seq = frame_get32(frames + 4);
  for (unsigned i = 0; i < count; i++) {
   const uint8_t *f = frames + i * FRAME_SIZE;
-  if (!frame_valid(f, FRAME_SIZE) || f[2] != 2 || frame_get32(f + 4) != seq + i ||
+  if (!frame_valid(f, FRAME_SIZE) || f[2] != (ARQ_WIRE_VERSION == 5 ? 3 : 2) || frame_get32(f + 4) != seq + i ||
       frame_get32(f + 28) != epoch) return 0;
  }
  arq_header(p, ARQ_DATA, epoch, seq, count, 0);
@@ -82,7 +91,7 @@ static inline bool arq_unpack_data(const uint8_t *p, size_t len, uint8_t *frames
  if (!arq_valid(p, len) || p[3] != ARQ_DATA) return false;
  for (unsigned i = 0; i < p[12]; i++) {
   uint8_t *f = frames + i * FRAME_SIZE;
-  f[0] = 'M'; f[1] = '8'; f[2] = 2; f[3] = 0;
+  f[0] = 'M'; f[1] = '8'; f[2] = ARQ_WIRE_VERSION == 5 ? 3 : 2; f[3] = 0;
   frame_put32(f + 4, frame_get32(p + 8) + i);
   memcpy(f + 8, p + ARQ_HEADER + i * ARQ_SAMPLE_BYTES, ARQ_SAMPLE_BYTES);
   frame_put32(f + 28, frame_get32(p + 4));

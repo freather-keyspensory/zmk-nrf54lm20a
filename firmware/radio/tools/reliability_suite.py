@@ -18,7 +18,7 @@ def open_receiver(serial=None, shared=False):
     if shared:
         from hid_options import shared_open
         shared_open(hid)
-    matches = [d for d in hid.enumerate(0x2fe3, 9) if d.get("usage_page") == 0xff00 and
+    matches = [d for d in hid.enumerate(0x2fe3, 0) if d.get("product_id") in (9, 10) and d.get("usage_page") == 0xff00 and
                (serial is None or d.get("serial_number") == serial)]
     if len(matches) != 1:
         raise RuntimeError("Expected one reliable receiver")
@@ -117,6 +117,10 @@ def main():
             "no_discarded": c["link_discarded"] == 0,
             "no_unrecovered_rf_gaps": c["radio_missing"] == 0,
         }
+        if before.get("radio_keyboard"):
+            checks["keyboard_ready"] = before["keyboard_ready"] == after["keyboard_ready"] == 1
+            checks["no_keyboard_errors"] = c["keyboard_errors"] == 0
+            checks["no_keyboard_queue_errors"] = c["keyboard_queue_errors"] == 0
         if before.get("security_dtls"):
             checks["authenticated"] = before["security_state"] == after["security_state"] == 2
             checks["same_secure_session"] = before["security_sessions"] == after["security_sessions"]
@@ -195,6 +199,14 @@ def main():
                     if before.get("security_wire_channel_hold") and not after.get("security_wire_channel_hold"):
                         continue
                     if before.get("security_provision_ack") and not after.get("security_provision_ack"):
+                        continue
+                    if before.get("keyboard_setup_recovery_test") and not after.get("keyboard_setup_recovery_test"):
+                        continue
+                    if before.get("keyboard_atomic_pair_updates") and not after.get("keyboard_atomic_pair_updates"):
+                        continue
+                    if before.get("keyboard_dual_interface_gate") and not after.get("keyboard_dual_interface_gate"):
+                        continue
+                    if before.get("radio_keyboard") and not after.get("radio_keyboard"):
                         continue
                     if (after["link_local_epoch"] != before["link_local_epoch"] and after["link_state"] and
                             after["link_remote_epoch"] != before["link_remote_epoch"] and after["radio_fresh"]):

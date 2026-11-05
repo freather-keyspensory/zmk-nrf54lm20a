@@ -1,5 +1,7 @@
 # Authenticated radio diagnostic phase — verified on hardware
 
+These are the earlier ARQv4 diagnostic results. Current keyboard forwarding is documented in [ZMK radio integration](zmk-radio.md).
+
 The earlier reliable ARQ transport is unauthenticated. The default and
 `reliable` builds remain that tested baseline. A `crypto-probe` build runs public
 known-answer, alteration-rejection and timing tests before the same unencrypted

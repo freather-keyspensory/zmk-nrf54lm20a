@@ -4,6 +4,8 @@ Experimental ZMK firmware and a signed MCUboot/UF2 update path for the **Minew M
 
 The working baseline supports USB HID, BLE HID, and native macOS ZMK Studio. The wired HID endpoint is configured for 8 kHz; measured completion rates were approximately 7.985–8.000 kHz. See [USB test details](docs/usb-hid.md). Native USB High Speed MSC transport is also verified. MCUboot signed boot, complete UF2 upgrades, tampered-image rejection, unconfirmed-trial rollback, and incomplete-copy recovery have passed controlled hardware tests. Physical power-loss and broader stress coverage remain outstanding. See the [test report](docs/testing.md) for exact evidence and limitations.
 
+The opt-in proprietary-radio mode runs ZMK on the transmitter and forwards keyboard reports through a paired USB receiver. Its builds and evidence are documented in [ZMK radio integration](docs/zmk-radio.md).
+
 This is a pinned compatibility port of **ZMK v0.3.0 to a newer Zephyr**, not a claim of upstream nRF54LM20A support or a production bootloader. USB HID is verified on macOS; physical cable replug, host reboot, and Windows remain unverified. The original XIAO target remains unverified on XIAO hardware.
 
 ## Repository layout
@@ -11,7 +13,7 @@ This is a pinned compatibility port of **ZMK v0.3.0 to a newer Zephyr**, not a c
 - `firmware/port/`: Minew board, one-key test configuration, legacy kscan compatibility, and SWD tools.
 - `firmware/bootloader/`: UF2 virtual drive, parser, signed MCUboot integration, packaging, and tests.
 - `firmware/patches/`: minimal patches against exact upstream revisions.
-- `firmware/radio/`: experimental two-board proprietary-radio diagnostics. Private wired pairing, DTLS encryption/authentication, replay rejection and ACK/retry recovery passed controlled tests. Three final 60-second encrypted captures delivered 1,440,008 fresh samples near 8 kHz with zero observed sample gaps/duplicates or recorded USB drops/errors. See [security evidence](docs/radio-security.md) and the [earlier reliable baseline](docs/radio-reliability.md). ZMK keyboard report integration remains future work.
+- `firmware/radio/`: real ZMK keyboard reports over an encrypted proprietary-radio link to a USB receiver. macOS typing, key release on link loss, live re-pairing and 23 final fault/restart windows passed. Four one-minute captures across tested integration revisions delivered 1,920,016 report-state snapshots with zero observed gaps/duplicates. See [ZMK radio evidence](docs/zmk-radio.md). Report sampling, USB polling and physical-key latency are distinct; MX/EC/HE scanning remains future work.
 - `hardware/`: firmware-facing integration notes. Separate local PCB experiments are not included in this firmware baseline.
 - `docs/`: public build/test documentation.
 

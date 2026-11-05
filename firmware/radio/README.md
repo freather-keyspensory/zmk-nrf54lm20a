@@ -1,4 +1,8 @@
-# Experimental 8 kHz proprietary radio diagnostics
+# Experimental ZMK radio and 8 kHz diagnostics
+
+The opt-in **keyboard** variant connects real ZMK keyboard reports to an
+authenticated USB receiver. See [ZMK radio integration](../../docs/zmk-radio.md)
+for its separate TX build, report profile, failsafe, metadata redaction and tests.
 
 The opt-in **secure** variant adds wired private pairing and DTLS authentication,
 encryption and replay protection to the diagnostic transport. See
@@ -15,14 +19,14 @@ radio addresses and cannot communicate with one another.
 
 Target: two Minew MX54BE13 boards with nRF54LM20A. One transmits, the other
 receives and forwards fresh diagnostic frames to a USB High Speed vendor HID
-endpoint. This is the timing bring-up stage, **not a ZMK wireless keyboard
-transport yet**. Both targets build in standalone and MCUboot layouts on the
+endpoint. The legacy diagnostics described below forward generated frames; the separate
+keyboard variant above forwards actual ZMK reports. Both targets build in standalone and MCUboot layouts on the
 pinned macOS workspace. Local 0.3.0+1 packages passed signature verification,
 UF2 reconstruction/bounds checks and tampered-payload rejection by imgtool.
 Receiver 0.3.0+1 has been installed temporarily on the original board: it boots,
 confirms its trial image and enumerates at USB High Speed (480 Mbps), with a
 125 us HID polling interval. The original ZMK 0.2.0+1 was restored afterward.
-Both boards now run signed diagnostics. Initial two-board tests at 2480 MHz
+At that earlier checkpoint, both boards ran signed diagnostics. Initial two-board tests at 2480 MHz
 delivered approximately 7,934–7,995 fresh host reports/s, with sequence gaps.
 The subsequent USB catch-up format passed three separate 60-second steady-state
 captures: 1,439,995 fresh frames total, with zero host/RF gaps, CRC errors or USB

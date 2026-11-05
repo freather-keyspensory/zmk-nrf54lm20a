@@ -24,6 +24,8 @@ west update --narrow
 # Apply only after dependency resolution; west update would replace tracked upstream changes.
 git -C zmk apply --check "$repo_root/firmware/patches/zmk-v0.3.0-zephyr45.patch"
 git -C zmk apply "$repo_root/firmware/patches/zmk-v0.3.0-zephyr45.patch"
+git -C zmk apply --check "$repo_root/firmware/patches/zmk-v0.3.0-minew-radio.patch"
+git -C zmk apply "$repo_root/firmware/patches/zmk-v0.3.0-minew-radio.patch"
 git -C zephyr apply --check "$repo_root/firmware/patches/zephyr-nordic-binding-validation.patch"
 git -C zephyr apply "$repo_root/firmware/patches/zephyr-nordic-binding-validation.patch"
 git -C bootloader/mcuboot apply --check "$repo_root/firmware/patches/mcuboot-rram-scratch-cleanup.patch"

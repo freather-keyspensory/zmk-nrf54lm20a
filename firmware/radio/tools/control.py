@@ -6,13 +6,13 @@ import struct
 import telemetry
 
 COMMANDS = {"drop-data": 1, "drop-ack": 2, "pause-radio": 3, "restart": 4, "channel": 5, "bootloader": 6,
-            "tamper-wire": 8, "replay-wire": 9, "replay-old-session": 10, "inject-plaintext": 11}
+            "tamper-wire": 8, "replay-wire": 9, "replay-old-session": 10, "inject-plaintext": 11, "hold-not-ready": 12}
 
 
 def encode(command, value, report_size=208):
     op = COMMANDS[command]
     valid = ((op in (1, 2, 8, 9, 10, 11) and 0 <= value <= 64) or
-             (op == 3 and 1 <= value <= 100) or
+             (op == 3 and 1 <= value <= 100) or (op == 12 and 0 <= value <= 10000) or
              (op in (4, 6) and value == 1) or (op == 5 and 0 <= value <= 2))
     if not valid:
         raise ValueError("Outside bounded receiver test parameters")
@@ -39,7 +39,7 @@ def main():
     if a.shared:
         from hid_options import shared_open
         shared_open(hid)
-    matches = [d for d in hid.enumerate(0x2fe3, 9) if d.get("usage_page") == 0xff00 and
+    matches = [d for d in hid.enumerate(0x2fe3, 0) if d.get("product_id") in (9,10) and d.get("usage_page") == 0xff00 and
                (a.serial is None or d.get("serial_number") == a.serial)]
     if len(matches) != 1:
         p.error("Expected exactly one matching diagnostic receiver")
@@ -51,6 +51,8 @@ def main():
             p.error("Receiver does not implement the reliable diagnostic protocol")
         if COMMANDS[a.command] >= 8 and not stats.get("security_dtls"):
             p.error("Wire security tests require the secure receiver firmware")
+        if a.command == "hold-not-ready" and not stats.get("keyboard_setup_recovery_test"):
+            p.error("Readiness injection requires the keyboard receiver setup-test profile")
         payload = encode(a.command, value, stats.get("control_report_size", 208))
         sent = dev.send_feature_report(b"\0" + payload)
         if sent not in (len(payload), len(payload)+1):

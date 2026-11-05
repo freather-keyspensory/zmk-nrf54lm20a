@@ -18,3 +18,5 @@ config MINEW_UF2_BOOTLOADER
 if ZMK_USB_NEXT
 rsource "../../upstream-zephyr/samples/subsys/usb/common/Kconfig.sample_usbd"
 endif
+
+rsource "../../radio/Kconfig.transport"

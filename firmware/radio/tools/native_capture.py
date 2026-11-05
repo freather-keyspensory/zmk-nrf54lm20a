@@ -6,9 +6,11 @@ import sys
 import tempfile
 
 
-def collect(seconds, serial, ready_file=None):
+def collect(seconds, serial, ready_file=None, product_id=9):
     if sys.platform != "darwin":
         raise RuntimeError("Direct IOHID capture requires macOS")
+    if product_id not in (9,10):
+        raise ValueError("Unknown receiver product")
     source = Path(__file__).with_name("capture_macos.c")
     binary = source.parents[1] / "build/host/capture_macos"
     binary.parent.mkdir(parents=True, exist_ok=True)
@@ -19,7 +21,7 @@ def collect(seconds, serial, ready_file=None):
     with tempfile.TemporaryDirectory(prefix="minew-capture-") as tmp:
         output = Path(tmp) / "reports.bin"
         subprocess.run([str(binary), str(seconds), str(output), serial,
-                        str(ready_file) if ready_file else ""], check=True)
+                        str(ready_file) if ready_file else "", str(product_id)], check=True)
         reports, start, stop = decode(output.read_bytes())
         if (stop - start) / 1e9 < seconds * .99:
             raise RuntimeError("IOHID capture ended before the requested observation window")

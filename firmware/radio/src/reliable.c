@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: MIT */
-/* Diagnostic stop-and-wait ARQ. No pairing, encryption, or keyboard injection. */
+/* Shared acknowledged transport; secure and keyboard variants are opt-in. */
 #include <zephyr/kernel.h>
 #include <zephyr/irq.h>
 #include <zephyr/drivers/entropy.h>
@@ -78,7 +78,14 @@ static void sample_isr(const void *unused)
  }
  for (uint32_t i = 0; i < due; i++) {
   uint8_t f[FRAME_SIZE];
+#if IS_ENABLED(CONFIG_MINEW_ZMK_RADIO_TX)
+  extern void minew_zmk_radio_sample(uint8_t *payload);
+  f[0]='M'; f[1]='8'; f[2]=3; f[3]=0;
+  frame_put32(f+4,next_sequence++); frame_put32(f+28,radio_link_stats[LS_LOCAL_EPOCH]);
+  minew_zmk_radio_sample(f+8);
+#else
   frame_make_session(f, next_sequence++, radio_link_stats[LS_LOCAL_EPOCH]);
+#endif
   if (k_msgq_put(&samples, f, K_NO_WAIT)) radio_link_stats[LS_QUEUE_OVERFLOW]++;
   else radio_fresh++;
  }
@@ -94,6 +101,10 @@ static void sampling_stop(void)
 }
 static void sampling_start(void)
 {
+#if IS_ENABLED(CONFIG_MINEW_ZMK_RADIO_TX)
+ extern void minew_zmk_radio_begin_session(void);
+ minew_zmk_radio_begin_session();
+#endif
  next_sequence = 0; next_tick = 2000;
  nrf_timer_task_trigger(TIMER, NRF_TIMER_TASK_CLEAR);
  nrf_timer_cc_set(TIMER, 0, next_tick);
@@ -406,6 +417,12 @@ int radio_link_control(uint32_t op, uint32_t value)
  case 2: if (value > 64) return -EINVAL; fault_ack = value; break;
  case 3: if (!value || value > 100) return -EINVAL; fault_pause_ms = value; break;
  case 4: if (value != 1) return -EINVAL; restart_requested = 1; break;
+#if IS_ENABLED(CONFIG_MINEW_RADIO_KEYBOARD) && !RADIO_TX
+ case 12: {
+  extern int radio_usb_hold_ready(uint32_t ms);
+  return radio_usb_hold_ready(value);
+ }
+#endif
  case 5: if (value >= ARRAY_SIZE(channels)) return -EINVAL; fault_channel = value + 1; break;
 #if IS_ENABLED(CONFIG_MINEW_RADIO_SECURE)
  case 8: if (value > 64) return -EINVAL; fault_wire_tamper = value; break;
@@ -490,7 +507,7 @@ static bool send_window(uint32_t *pending, uint32_t overflow)
   if (!window_send(n, deadline, overflow)) return false;
   /* Receiver decrypt/USB/rearm budget. Newly produced batches are sent as
    * they become available; collecting a window never delays its first batch. */
-  if (packet+1 < ARQ_WINDOW) k_busy_wait(350);
+  if (packet+1 < ARQ_WINDOW) k_busy_wait(IS_ENABLED(CONFIG_MINEW_RADIO_KEYBOARD) ? 150 : 350);
  }
  uint32_t first = frame_get32(pending_frames+4);
  unsigned acknowledged = 0;
@@ -515,7 +532,7 @@ static bool send_window(uint32_t *pending, uint32_t overflow)
     if (!n) return false;
     tx_wire[1+13] = packet+1 == ARQ_WINDOW ? ARQ_ACK_REQUEST : 0;
     if (!window_send(n, deadline, overflow)) return false;
-    if (packet+1 < ARQ_WINDOW) k_busy_wait(350);
+    if (packet+1 < ARQ_WINDOW) k_busy_wait(IS_ENABLED(CONFIG_MINEW_RADIO_KEYBOARD) ? 150 : 350);
    }
   } else {
    /* A lost ACK does not require re-encrypting/retransmitting four DATA
@@ -545,12 +562,24 @@ static void worker(void *a, void *b, void *c)
   radio_link_stats[LS_STATE] = 0;
   arq_header(tx_wire + 1, ARQ_HELLO, epoch, 0, 0, 0);
   int64_t next_hop = k_uptime_get() + ARQ_TX_DWELL_MS;
-  while (!exchange(ARQ_HEADER, ARQ_READY)) {
+  bool hello_ready = false;
+#if IS_ENABLED(CONFIG_MINEW_RADIO_SECURE)
+  last_feedback_ms = k_uptime_get();
+#endif
+  while (!(hello_ready = exchange(ARQ_HEADER, ARQ_READY))) {
+#if IS_ENABLED(CONFIG_MINEW_RADIO_SECURE)
+   /* A key change or reset peer can invalidate TLS before ARQ is ready.
+    * Return to authenticated setup instead of retrying a dead context forever.
+    * Authenticated BUSY replies keep a healthy USB-unready peer alive. */
+   if (radio_security_stats[0] != 2 || secure_pair_version != rf_pair_generation() ||
+       k_uptime_get()-last_feedback_ms >= 300) break;
+#endif
    if (k_uptime_get() >= next_hop && k_uptime_get() - last_feedback_ms >= ARQ_TX_DWELL_MS) {
     tune((channel_index + 1) % ARRAY_SIZE(channels)); next_hop = k_uptime_get() + ARQ_TX_DWELL_MS;
    }
    k_sleep(K_USEC(200));
   }
+  if (!hello_ready) continue;
   radio_link_stats[LS_STATE] = 1;
   sampling_start();
   uint32_t overflow_at_start = radio_link_stats[LS_QUEUE_OVERFLOW];
@@ -727,7 +756,7 @@ static void worker(void *a, void *b, void *c)
 K_THREAD_DEFINE(link_thread, IS_ENABLED(CONFIG_MINEW_RADIO_SECURE) ? 8192 : 4096, worker, NULL, NULL, NULL,
                 IS_ENABLED(CONFIG_MINEW_RADIO_SECURE) && !RADIO_TX ? 2 : 5, 0, 0);
 
-int main(void)
+static int radio_run(void)
 {
 #if !RADIO_TX
  int usb = radio_usb_init(); if (usb) return usb;
@@ -756,7 +785,7 @@ int main(void)
  nrf_radio_packet_conf_t conf = {.lflen = 8, .plen = NRF_RADIO_PREAMBLE_LENGTH_16BIT,
   .maxlen = AIR_MAX_PAYLOAD, .statlen = 0, .balen = 4, .big_endian = false, .whiteen = false};
  nrf_radio_packet_configure(RADIO, &conf);
- nrf_radio_base0_set(RADIO, 0x8e89bed6); nrf_radio_prefix0_set(RADIO, IS_ENABLED(CONFIG_MINEW_RADIO_SECURE) ? 0x75 : 0x74);
+ nrf_radio_base0_set(RADIO, 0x8e89bed6); nrf_radio_prefix0_set(RADIO, IS_ENABLED(CONFIG_MINEW_RADIO_KEYBOARD) ? 0x76 : IS_ENABLED(CONFIG_MINEW_RADIO_SECURE) ? 0x75 : 0x74);
  nrf_radio_txaddress_set(RADIO, 0); nrf_radio_rxaddresses_set(RADIO, 1);
  nrf_radio_crc_configure(RADIO, 3, NRF_RADIO_CRC_ADDR_INCLUDE, 0x00065b);
  nrf_radio_crcinit_set(RADIO, 0x555555); tune(0);
@@ -807,3 +836,12 @@ int main(void)
    radio_link_stats[LS_CHANNEL], radio_link_stats[LS_LOCAL_EPOCH], radio_link_stats[LS_REMOTE_EPOCH]);
  }
 }
+
+#if IS_ENABLED(CONFIG_MINEW_ZMK_RADIO_TX)
+static void zmk_radio_service(void *a, void *b, void *c)
+{ ARG_UNUSED(a); ARG_UNUSED(b); ARG_UNUSED(c); radio_run(); }
+K_THREAD_DEFINE(zmk_radio_service_thread, 8192, zmk_radio_service, NULL, NULL, NULL, 7, 0, -1);
+void minew_zmk_radio_start(void) { k_thread_start(zmk_radio_service_thread); }
+#else
+int main(void) { return radio_run(); }
+#endif

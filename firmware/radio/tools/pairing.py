@@ -151,7 +151,7 @@ def provision_b(a, blob):
     import telemetry
     serial = expected_uid(a.identity)[::-1].hex().upper()
     import hid
-    matches = [d for d in hid.enumerate(0x2fe3, 9) if d.get("usage_page") == 0xff00 and
+    matches = [d for d in hid.enumerate(0x2fe3, 0) if d.get("product_id") in (9, 10) and d.get("usage_page") == 0xff00 and
                d.get("serial_number", "").upper() == serial]
     if len(matches) != 1:
         raise RuntimeError("Expected exactly one receiver with the backed-up unique identity")

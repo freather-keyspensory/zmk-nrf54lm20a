@@ -185,7 +185,7 @@ class TelemetryTest(unittest.TestCase):
             identity = pathlib.Path(tmp)/"test-identity.json"
             uid = bytes(range(8)); identity.write_text(json.dumps(dict(device_id_private=uid.hex())))
             args = SimpleNamespace(identity=identity, replace=False)
-            fake_hid = SimpleNamespace(enumerate=lambda *a: [dict(usage_page=0xff00, serial_number=uid[::-1].hex().upper())])
+            fake_hid = SimpleNamespace(enumerate=lambda *a: [dict(product_id=9, usage_page=0xff00, serial_number=uid[::-1].hex().upper())])
             for final_status in (2, (1 << 32)-17):
                 h = Mock(); h.send_feature_report.return_value = 249
                 stale = dict(before, security_provision_status=(1 << 32)-22)
@@ -201,6 +201,58 @@ class TelemetryTest(unittest.TestCase):
                             pairing.provision_b(args, blob)
                 h.close.assert_called_once()
                 self.assertEqual(struct.unpack_from("<I", h.send_feature_report.call_args.args[0], 81)[0], token)
+
+    def test_keyboard_frames_and_telemetry(self):
+        frame = bytearray(32); frame[:4] = b"M8\x03\0"
+        struct.pack_into("<I", frame, 4, 100); struct.pack_into("<I", frame, 28, 123)
+        frame[8] = 9; frame[10] = 1; frame[13] = 4
+        self.assertTrue(valid(frame))
+        for pos in (3, 8, 9, 10, 12, 27):
+            bad = bytearray(frame); bad[pos] = 255
+            self.assertFalse(valid(bad))
+        frame[8] = 13; frame[10] = 2; frame[13] = 0; frame[11] = 0xe9
+        self.assertTrue(valid(frame))
+        frame[12] = 0x10; self.assertFalse(valid(frame))
+        frame[2] = 4; frame[8:28] = bytes(20)
+        self.assertTrue(valid(frame))
+        frame[8] = 1; self.assertFalse(valid(frame))
+        header = self.wire[:4]+struct.pack("<I",13)+self.wire[8:]
+        reports = struct.pack("<4I",0,0,0,64)
+        link = [0]*24; link[0:3] = [111,222,1]; link[16:23] = [12,12,0,0,2,1,0]
+        security = [2,1,0,0,0,0,0,1234,2,1]
+        a = telemetry.decode(header+reports+struct.pack("<24I10I",*link,*security))
+        self.assertEqual(a["link_wire_version"],5)
+        self.assertTrue(a["radio_keyboard"])
+        self.assertEqual(a["keyboard_completed"],12)
+        b = dict(a, uptime_ms=a["uptime_ms"]+100, keyboard_completed=14)
+        self.assertEqual(telemetry.difference(a,b)["counters"]["keyboard_completed"],2)
+        v14 = header[:4]+struct.pack("<I",14)+header[8:]
+        link[21] = 7; link[22] = 1
+        new = telemetry.decode(v14+reports+struct.pack("<24I10I",*link,*security))
+        v15 = header[:4]+struct.pack("<I",15)+header[8:]
+        gated = telemetry.decode(v15+reports+struct.pack("<24I10I",*link,*security))
+        self.assertTrue(gated["keyboard_dual_interface_gate"])
+        self.assertEqual(len(encode("hold-not-ready",10000,248)),248)
+        self.assertEqual(len(encode("hold-not-ready",0,248)),248)
+        for invalid in (-1,10001):
+            with self.assertRaises(ValueError):
+                encode("hold-not-ready",invalid,248)
+        v17 = header[:4]+struct.pack("<I",17)+header[8:]
+        hold_link = list(link); hold_link[22] = 9
+        holding = telemetry.decode(v17+reports+struct.pack("<24I10I",*hold_link,*security))
+        self.assertTrue(holding["keyboard_not_ready_injected"])
+        self.assertEqual(holding["keyboard_held_flags"],0)
+
+        v16 = header[:4]+struct.pack("<I",16)+header[8:]
+        self.assertTrue(telemetry.decode(v16+reports+struct.pack("<24I10I",*link,*security))["keyboard_atomic_pair_updates"])
+        self.assertEqual(new["link_losses"],7)
+        self.assertEqual(new["keyboard_ready"],1)
+        self.assertEqual(new["keyboard_held_flags"],0)
+        self.assertNotIn("link_samples",new)
+        self.assertNotIn("link_sample_late",new)
+        link[21] = 1; link[22] = 4
+        with self.assertRaises(ValueError):
+            telemetry.decode(header+reports+struct.pack("<24I10I",*link,*security))
 
     def test_credential_permissions_and_schema(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -244,6 +296,30 @@ class TelemetryTest(unittest.TestCase):
         other = dict(device, IORegistryEntryID=3)
         with self.assertRaises(RuntimeError):
             target_disks([device, other], serial)
+
+    def test_installer_retries_discovery_but_never_a_failed_final_guard(self):
+        from unittest.mock import patch, Mock
+        import subprocess
+        import install_uf2
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp); drive = root/"drive"; drive.mkdir()
+            (drive/"INFO_UF2.TXT").write_text("test recovery")
+            image=root/"image.bin"; image.write_bytes(b"test")
+            uf2=root/"update.uf2"; uf2.write_bytes(b"test")
+            identity=root/"identity.json"; identity.write_text(json.dumps(dict(device_id_private=bytes(range(8)).hex())))
+            argv=["install_uf2",str(uf2),"--signed-image",str(image),"--identity",str(identity)]
+            transient=subprocess.CalledProcessError(1,["ioreg"])
+            with patch.object(sys,"argv",argv), patch.object(sys,"platform","darwin"), \
+                 patch.object(install_uf2,"validate"), patch.object(install_uf2,"find_mount",side_effect=[transient,drive,drive]), \
+                 patch.object(install_uf2.time,"sleep"), patch("builtins.print"), patch.object(install_uf2.shutil,"copyfile") as copy:
+                install_uf2.main()
+                copy.assert_called_once_with(uf2,drive/"UPDATE.UF2")
+            with patch.object(sys,"argv",argv), patch.object(sys,"platform","darwin"), \
+                 patch.object(install_uf2,"validate"), patch.object(install_uf2,"find_mount",side_effect=[drive,transient]), \
+                 patch.object(install_uf2.shutil,"copyfile") as copy:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    install_uf2.main()
+                copy.assert_not_called()
 
     def test_installer_reconstruction_and_application_bounds(self):
         image = bytearray(0x910)

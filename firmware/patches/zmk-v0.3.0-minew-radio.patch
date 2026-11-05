@@ -1,0 +1,30 @@
+diff --git a/app/src/endpoints.c b/app/src/endpoints.c
+--- a/app/src/endpoints.c
++++ b/app/src/endpoints.c
+@@ -187,6 +187,11 @@
+ }
+ 
+ int zmk_endpoints_send_report(uint16_t usage_page) {
++#if IS_ENABLED(CONFIG_MINEW_ZMK_RADIO_TX)
++    extern int minew_zmk_radio_send_report(uint16_t usage_page);
++    return minew_zmk_radio_send_report(usage_page);
++#endif
++
+ 
+     LOG_DBG("usage page 0x%02X", usage_page);
+     switch (usage_page) {
+diff --git a/app/src/main.c b/app/src/main.c
+--- a/app/src/main.c
++++ b/app/src/main.c
+@@ -27,6 +27,11 @@
+     settings_load();
+ #endif
+ 
++#if IS_ENABLED(CONFIG_MINEW_ZMK_RADIO_TX)
++    extern void minew_zmk_radio_start(void);
++    minew_zmk_radio_start();
++#endif
++
+ #ifdef CONFIG_ZMK_DISPLAY
+     zmk_display_init();
+ 

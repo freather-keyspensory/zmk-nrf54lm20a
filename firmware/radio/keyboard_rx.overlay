@@ -1,0 +1,9 @@
+/ {
+ keyboard_hid: keyboard-hid {
+  compatible = "zephyr,hid-device";
+  label = "Minew encrypted ZMK keyboard";
+  protocol-code = "none";
+  in-report-size = <64>;
+  in-polling-period-us = <125>;
+ };
+};

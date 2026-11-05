@@ -90,7 +90,12 @@ def main():
     serial = uid[::-1].hex().upper()
     deadline = time.monotonic()+a.wait_seconds
     while True:
-        mount = find_mount(serial)
+        try:
+            mount = find_mount(serial)
+        except (subprocess.CalledProcessError, plistlib.InvalidFileException):
+            # The USB registry/disk can disappear between reads during reset.
+            # Retry discovery only; never relax target matching or retry a write.
+            mount = None
         if mount:
             break
         if time.monotonic() >= deadline:

@@ -23,4 +23,8 @@ echo 'Cumulative window ACK, selective suffix retry, duplicate history and poll 
   "$root/dtls_record_test.c" -o "$test_bin"
 "$test_bin"
 echo 'DTLS datagram framing, truncation and coalesced-reconnect gates passed'
+"${CC:-cc}" -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+  -DCONFIG_MINEW_RADIO_SECURE=1 -DCONFIG_MINEW_RADIO_KEYBOARD=1 "$root/keyboard_test.c" -o "$test_bin"
+"$test_bin"
+echo 'ZMK keyboard/consumer payload bounds, format isolation and wrap roundtrip passed'
 python3 "$root/test_telemetry.py"
